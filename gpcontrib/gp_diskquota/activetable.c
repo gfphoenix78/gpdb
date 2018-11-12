@@ -17,6 +17,7 @@
 #include "catalog/indexing.h"
 #include "catalog/pg_class.h"
 #include "catalog/pg_type.h"
+#include "cdb/cdbbufferedappend.h"
 #include "executor/spi.h"
 #include "funcapi.h"
 #include "miscadmin.h"
@@ -29,10 +30,12 @@
 #include "diskquota.h"
 
 HTAB *active_tables_map = NULL;
+static BufferedAppendWrite_hook_type prev_BufferedAppendWrite_hook = NULL;
 static SmgrStat_hook_type prev_SmgrStat_hook = NULL;
 static ScanKeyData relfilenode_skey[2];
 
 static void report_active_table_SmgrStat(SMgrRelation reln);
+static void report_active_table_AO(BufferedAppend *bufferedAppend);
 HTAB* get_active_tables(void);
 void init_active_table_hook(void);
 void init_shm_worker_active_tables(void);
@@ -47,6 +50,8 @@ init_active_table_hook(void)
 {
 	prev_SmgrStat_hook = SmgrStat_hook;
 	SmgrStat_hook = report_active_table_SmgrStat;
+	prev_BufferedAppendWrite_hook = BufferedAppendWrite_hook;
+	BufferedAppendWrite_hook = report_active_table_AO;
 }
 
 /*
@@ -232,26 +237,16 @@ HTAB* get_active_tables()
 	return local_active_table_stats_map;
 }
 
-/*
- *  Hook function in smgr to report the active table
- *  information and stroe them in active table shared memory
- *  diskquota worker will consuming these active tables and
- *  recalculate their file size to update diskquota model.
- */
-static void
-report_active_table_SmgrStat(SMgrRelation reln)
+static void report_active_table_helper(const RelFileNodeBackend *relFileNode)
 {
 	DiskQuotaActiveTableFileEntry *entry;
 	DiskQuotaActiveTableFileEntry item;
 	bool found = false;
 
-	if (prev_SmgrStat_hook)
-		(*prev_SmgrStat_hook)(reln);
-
 	MemSet(&item, 0, sizeof(DiskQuotaActiveTableFileEntry));
-	item.dbid = reln->smgr_rnode.node.dbNode;
-	item.relfilenode = reln->smgr_rnode.node.relNode;
-	item.tablespaceoid = reln->smgr_rnode.node.spcNode;
+	item.dbid = relFileNode->node.dbNode;
+	item.relfilenode = relFileNode->node.relNode;
+	item.tablespaceoid = relFileNode->node.spcNode;
 
 	LWLockAcquire(active_table_shm_lock->lock, LW_EXCLUSIVE);
 	entry = hash_search(active_tables_map, &item, HASH_ENTER_NULL, &found);
@@ -264,3 +259,26 @@ report_active_table_SmgrStat(SMgrRelation reln)
 		ereport(WARNING, (errmsg("Share memory is not enough for active tables.")));
 	}
 }
+/*
+ *  Hook function in smgr to report the active table
+ *  information and stroe them in active table shared memory
+ *  diskquota worker will consuming these active tables and
+ *  recalculate their file size to update diskquota model.
+ */
+static void
+report_active_table_SmgrStat(SMgrRelation reln)
+{
+	if (prev_SmgrStat_hook)
+		(*prev_SmgrStat_hook)(reln);
+
+	report_active_table_helper(&reln->smgr_rnode);
+}
+
+static void
+report_active_table_AO(BufferedAppend *bufferedAppend)
+{
+	if (prev_BufferedAppendWrite_hook)
+		(*prev_BufferedAppendWrite_hook)(bufferedAppend);
+	report_active_table_helper(&bufferedAppend->relFileNode);
+}
+

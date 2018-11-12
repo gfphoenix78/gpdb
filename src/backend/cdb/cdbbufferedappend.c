@@ -23,6 +23,7 @@
 #include "cdb/cdbbufferedappend.h"
 #include "utils/guc.h"
 
+BufferedAppendWrite_hook_type BufferedAppendWrite_hook = NULL;
 static void BufferedAppendWrite(
 					BufferedAppend *bufferedAppend);
 
@@ -195,6 +196,8 @@ BufferedAppendWrite(BufferedAppend *bufferedAppend)
 		   bufferedAppend->filePathName,
 		   bufferedAppend->largeWritePosition,
 		   bytestotal);
+	if (BufferedAppendWrite_hook)
+		(*BufferedAppendWrite_hook)(bufferedAppend);
 
 	/*
 	 * Log each varblock to the XLog. Write to the file first, before

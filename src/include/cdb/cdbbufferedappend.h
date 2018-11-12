@@ -180,4 +180,7 @@ extern void BufferedAppendCompleteFile(
 extern void BufferedAppendFinish(
     BufferedAppend *bufferedAppend);
 
+typedef void (*BufferedAppendWrite_hook_type)(BufferedAppend *bufferedAppend);
+extern BufferedAppendWrite_hook_type BufferedAppendWrite_hook;
+
 #endif   /* CDBBUFFEREDAPPEND_H */
