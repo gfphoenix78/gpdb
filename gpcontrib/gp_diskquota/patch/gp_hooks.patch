@@ -1,0 +1,130 @@
+From a77b11e87cf7a000c85bbc00179b2cffed912d49 Mon Sep 17 00:00:00 2001
+From: Hubert Zhang <hzhang@pivotal.io>
+Date: Fri, 9 Nov 2018 06:55:10 +0000
+Subject: [PATCH 1/2] Add hooks for diskquota extension.
+
+---
+ src/backend/storage/buffer/bufmgr.c | 12 ++++++++++++
+ src/backend/storage/smgr/smgr.c     | 21 +++++++++++++++++++++
+ src/include/storage/bufmgr.h        |  8 ++++++++
+ src/include/storage/smgr.h          |  6 ++++++
+ 4 files changed, 47 insertions(+)
+
+diff --git a/src/backend/storage/buffer/bufmgr.c b/src/backend/storage/buffer/bufmgr.c
+index 0884cd1..6f71d0c 100644
+--- a/src/backend/storage/buffer/bufmgr.c
++++ b/src/backend/storage/buffer/bufmgr.c
+@@ -77,6 +77,13 @@
+ 
+ #define DROP_RELS_BSEARCH_THRESHOLD		20
+ 
++/*
++ * Hook for plugins to check permissions when doing a buffer extend.
++ * One example is to check whether there is additional disk quota for
++ * the table to be inserted.
++ */
++BufferExtendCheckPerms_hook_type BufferExtendCheckPerms_hook = NULL;
++
+ /* GUC variables */
+ bool		zero_damaged_pages = false;
+ int			bgwriter_lru_maxpages = 100;
+@@ -330,6 +337,11 @@ ReadBufferExtended(Relation reln, ForkNumber forkNum, BlockNumber blockNum,
+ 	 * miss.
+ 	 */
+ 	pgstat_count_buffer_read(reln);
++	/* check permissions when doing a buffer extend */
++	if (blockNum == P_NEW && BufferExtendCheckPerms_hook)
++	{
++		(*BufferExtendCheckPerms_hook)(reln->rd_id, blockNum);
++	}
+ 	buf = ReadBuffer_common(reln->rd_smgr, reln->rd_rel->relpersistence,
+ 							forkNum, blockNum, mode, strategy, &hit);
+ 	if (hit)
+diff --git a/src/backend/storage/smgr/smgr.c b/src/backend/storage/smgr/smgr.c
+index 719778b..c0c9c23 100644
+--- a/src/backend/storage/smgr/smgr.c
++++ b/src/backend/storage/smgr/smgr.c
+@@ -33,6 +33,12 @@
+ #include "utils/inval.h"
+ 
+ /*
++ * Hook for plugins to collect statistics from smgr functions
++ * One example is to record the active relfilenode information.
++ */
++SmgrStat_hook_type SmgrStat_hook = NULL;
++
++/*
+  * Each backend has a hashtable that stores all extant SMgrRelation objects.
+  * In addition, "unowned" SMgrRelation objects are chained together in a list.
+  */
+@@ -343,6 +349,11 @@ smgrcreate(SMgrRelation reln, ForkNumber forknum, bool isRedo)
+ 							isRedo);
+ 
+ 	mdcreate(reln, forknum, isRedo);
++
++	if (SmgrStat_hook)
++	{
++		(*SmgrStat_hook)(reln);
++	}
+ }
+ 
+ /*
+@@ -591,6 +602,11 @@ smgrextend(SMgrRelation reln, ForkNumber forknum, BlockNumber blocknum,
+ 		   char *buffer, bool skipFsync)
+ {
+ 	mdextend(reln, forknum, blocknum, buffer, skipFsync);
++
++	if (SmgrStat_hook)
++	{
++		(*SmgrStat_hook)(reln);
++	}
+ }
+ 
+ /*
+@@ -680,6 +696,11 @@ smgrtruncate(SMgrRelation reln, ForkNumber forknum, BlockNumber nblocks)
+ 	 * Do the truncation.
+ 	 */
+ 	mdtruncate(reln, forknum, nblocks);
++
++	if (SmgrStat_hook)
++	{
++		(*SmgrStat_hook)(reln);
++	}
+ }
+ 
+ /*
+diff --git a/src/include/storage/bufmgr.h b/src/include/storage/bufmgr.h
+index 8593339..04fb495 100644
+--- a/src/include/storage/bufmgr.h
++++ b/src/include/storage/bufmgr.h
+@@ -234,4 +234,12 @@ extern void AtProcExit_LocalBuffers(void);
+ extern BufferAccessStrategy GetAccessStrategy(BufferAccessStrategyType btype);
+ extern void FreeAccessStrategy(BufferAccessStrategy strategy);
+ 
++/*
++ * Hook for plugins to check permissions when doing a buffer extend.
++ * One example is to check whether there is additional disk quota for
++ * the table to be inserted.
++ */
++typedef bool (*BufferExtendCheckPerms_hook_type) (Oid, BlockNumber);
++extern PGDLLIMPORT BufferExtendCheckPerms_hook_type BufferExtendCheckPerms_hook;
++
+ #endif
+diff --git a/src/include/storage/smgr.h b/src/include/storage/smgr.h
+index 70f3df0..c376746 100644
+--- a/src/include/storage/smgr.h
++++ b/src/include/storage/smgr.h
+@@ -147,4 +147,10 @@ extern Datum smgrin(PG_FUNCTION_ARGS);
+ extern Datum smgreq(PG_FUNCTION_ARGS);
+ extern Datum smgrne(PG_FUNCTION_ARGS);
+ 
++/*
++ * Hook for plugins to collect statistics from smgr functions
++ * One example is to record the active relfilenode information.
++ */
++typedef void (*SmgrStat_hook_type)(SMgrRelation sreln);
++extern PGDLLIMPORT SmgrStat_hook_type SmgrStat_hook;
+ #endif   /* SMGR_H */
+-- 
+1.8.3.1
+
