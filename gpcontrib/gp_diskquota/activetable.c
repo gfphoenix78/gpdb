@@ -237,6 +237,10 @@ HTAB* get_active_tables()
 	return local_active_table_stats_map;
 }
 
+/*
+ * Common function for reporting active tables, used by smgr and ao
+ */
+ 
 static void report_active_table_helper(const RelFileNodeBackend *relFileNode)
 {
 	DiskQuotaActiveTableFileEntry *entry;
@@ -274,6 +278,10 @@ report_active_table_SmgrStat(SMgrRelation reln)
 	report_active_table_helper(&reln->smgr_rnode);
 }
 
+/*
+ * Hook function in BufferedAppendWrite to report the active table, used by
+ * diskquota
+ */
 static void
 report_active_table_AO(BufferedAppend *bufferedAppend)
 {
@@ -281,4 +289,3 @@ report_active_table_AO(BufferedAppend *bufferedAppend)
 		(*prev_BufferedAppendWrite_hook)(bufferedAppend);
 	report_active_table_helper(&bufferedAppend->relFileNode);
 }
-
