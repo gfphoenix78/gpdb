@@ -23,6 +23,10 @@
 #include "cdb/cdbbufferedappend.h"
 #include "utils/guc.h"
 
+/*
+ * Hook function in BufferedAppendWrite, used by plugins to call
+ * when the size of AO table is increased.
+ */
 BufferedAppendWrite_hook_type BufferedAppendWrite_hook = NULL;
 static void BufferedAppendWrite(
 					BufferedAppend *bufferedAppend);
