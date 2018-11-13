@@ -29,7 +29,7 @@ static ExecutorCheckPerms_hook_type prev_ExecutorCheckPerms_hook;
 static BufferExtendCheckPerms_hook_type prev_BufferExtendCheckPerms_hook;
 static DispatcherCheckPerms_hook_type prev_DispatcherCheckPerms_hook;
 
-static Oid checked_reloid;
+static List *checked_reloid_list;
 /*
  * Initialize enforcement hooks.
  */
@@ -58,7 +58,8 @@ quota_check_ExecCheckRTPerms(List *rangeTable, bool ereport_on_violation)
 {
 	ListCell   *l;
 
-	checked_reloid = InvalidOid;
+	list_free(checked_reloid_list);
+	checked_reloid_list = NIL;
 
 	foreach(l, rangeTable)
 	{
@@ -77,7 +78,7 @@ quota_check_ExecCheckRTPerms(List *rangeTable, bool ereport_on_violation)
 
 		/* Perform the check as the relation's owner and namespace */
 		quota_check_common(rte->relid);
-		checked_reloid = rte->relid;
+		checked_reloid_list = lappend_oid(checked_reloid_list, rte->relid);
 	}
 
 	return true;
@@ -111,9 +112,14 @@ quota_check_ReadBufferExtendCheckPerms(Oid reloid, BlockNumber blockNum)
 static bool
 quota_check_DispatcherCheckPerms(void)
 {
-       if(checked_reloid == InvalidOid)
-               return true;
-       /* Perform the check as the relation's owner and namespace */
-       quota_check_common(checked_reloid);
-       return true;
+	ListCell   *lc;
+	if(checked_reloid_list == NIL)
+		return true;
+	/* Perform the check as the relation's owner and namespace */
+	foreach(lc, checked_reloid_list)
+	{
+		Oid relid = (Oid)lfirst_oid(lc);
+		quota_check_common(relid);
+	}
+	return true;
 }
