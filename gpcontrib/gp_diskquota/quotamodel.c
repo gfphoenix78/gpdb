@@ -858,6 +858,7 @@ quota_check_common(Oid reloid)
 	get_rel_owner_schema(reloid, &ownerOid, &nsOid);
 	LWLockAcquire(black_map_shm_lock->lock, LW_SHARED);
 
+	elog(DEBUG1,"dispatch quota check schema:%u", nsOid);
 	if ( nsOid != InvalidOid)
 	{
 		keyitem.targetoid = nsOid;
