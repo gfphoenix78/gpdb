@@ -14,6 +14,8 @@
  */
 #include "postgres.h"
 
+#include "cdb/cdbdisp.h"
+#include "cdb/cdbdisp_async.h"
 #include "executor/executor.h"
 #include "storage/bufmgr.h"
 
@@ -21,10 +23,13 @@
 
 static bool quota_check_ExecCheckRTPerms(List *rangeTable, bool ereport_on_violation);
 static bool quota_check_ReadBufferExtendCheckPerms(Oid reloid, BlockNumber blockNum);
+static bool quota_check_DispatcherCheckPerms(void);
 
 static ExecutorCheckPerms_hook_type prev_ExecutorCheckPerms_hook;
 static BufferExtendCheckPerms_hook_type prev_BufferExtendCheckPerms_hook;
+static DispatcherCheckPerms_hook_type prev_DispatcherCheckPerms_hook;
 
+static Oid checked_reloid;
 /*
  * Initialize enforcement hooks.
  */
@@ -38,6 +43,10 @@ init_disk_quota_enforcement(void)
 	/* enforcement hook during query is loading data*/
 	prev_BufferExtendCheckPerms_hook = BufferExtendCheckPerms_hook;
 	BufferExtendCheckPerms_hook = quota_check_ReadBufferExtendCheckPerms;
+
+	/* enforcement hook during query is loading data */
+	prev_DispatcherCheckPerms_hook =DispatcherCheckPerms_hook;
+	DispatcherCheckPerms_hook = quota_check_DispatcherCheckPerms;
 }
 
 /*
@@ -48,6 +57,8 @@ static bool
 quota_check_ExecCheckRTPerms(List *rangeTable, bool ereport_on_violation)
 {
 	ListCell   *l;
+
+	checked_reloid = InvalidOid;
 
 	foreach(l, rangeTable)
 	{
@@ -66,7 +77,7 @@ quota_check_ExecCheckRTPerms(List *rangeTable, bool ereport_on_violation)
 
 		/* Perform the check as the relation's owner and namespace */
 		quota_check_common(rte->relid);
-
+		checked_reloid = rte->relid;
 	}
 
 	return true;
@@ -93,3 +104,16 @@ quota_check_ReadBufferExtendCheckPerms(Oid reloid, BlockNumber blockNum)
 	return true;
 }
 
+/*
+ * Enformcent hook function when query is loading data. Throws an error if
+ * the quota has been exceeded.
+ */
+static bool
+quota_check_DispatcherCheckPerms(void)
+{
+       if(checked_reloid == InvalidOid)
+               return true;
+       /* Perform the check as the relation's owner and namespace */
+       quota_check_common(checked_reloid);
+       return true;
+}
