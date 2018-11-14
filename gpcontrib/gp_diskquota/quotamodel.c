@@ -39,13 +39,12 @@
 #include "utils/lsyscache.h"
 #include "utils/snapmgr.h"
 #include "utils/syscache.h"
-#include "libpq-fe.h"
 
 #include "cdb/cdbdisp_query.h"
 #include "cdb/cdbdispatchresult.h"
 #include "cdb/cdbvars.h"
 #include "cdb/cdbutil.h"
-#include "utils/int8.h"
+#include "libpq-fe.h"
 
 #include <stdlib.h>
 
@@ -146,6 +145,7 @@ static void remove_namespace_map(Oid namespaceoid);
 static void remove_role_map(Oid owneroid);
 static bool load_quotas(void);
 static HTAB* pull_table_stats_from_seg(bool force);
+static StringInfoData convert_map_to_string(HTAB *active_list);
 
 static Size DiskQuotaShmemSize(void);
 static void disk_quota_shmem_startup(void);
@@ -571,7 +571,6 @@ calculate_table_disk_usage(bool force)
 	HASH_SEQ_STATUS iter;
 	HTAB *local_active_table_stat_map;
 	DiskQuotaActiveTableEntry *active_table_entry;
-	int i;
 
 	classRel = heap_open(RelationRelationId, AccessShareLock);
 	relScan = heap_beginscan_catalog(classRel, 0, NULL);
@@ -913,7 +912,7 @@ quota_check_common(Oid reloid)
 	return true;
 }
 
-static ArrayType*
+static HTAB*
 pull_active_list_from_seg()
 {
 	CdbPgResults cdb_pgresults = {NULL, 0};
@@ -921,8 +920,6 @@ pull_active_list_from_seg()
 	char *sql;
 	HTAB *local_table_stats_map = NULL;
 	HASHCTL ctl;
-	Datum *array;
-	HASH_SEQ_STATUS iter;
 	DiskQuotaActiveTableEntry *entry;
 
 	memset(&ctl, 0, sizeof(ctl));
@@ -937,10 +934,9 @@ pull_active_list_from_seg()
 	                                    HASH_ELEM | HASH_CONTEXT | HASH_FUNCTION);
 
 
-	sql = "select * from diskquota.diskquota_fetch_active_table_stat(1, '{}'::oid[])";
+	sql = "select * from diskquota.diskquota_fetch_table_stat(1, '{}'::oid[])";
 
 	CdbDispatchCommand(sql, DF_NONE, &cdb_pgresults);
-
 
 	for (i = 0; i < cdb_pgresults.numResults; i++) {
 
@@ -960,6 +956,8 @@ pull_active_list_from_seg()
 		{
 			tableOid = atooid(PQgetvalue(pgresult, j, 0));
 
+			elog(LOG, "get oid is %d", tableOid);
+
 			entry = (DiskQuotaActiveTableEntry *) hash_search(local_table_stats_map, &tableOid, HASH_ENTER, &found);
 
 			if(!found)
@@ -972,20 +970,8 @@ pull_active_list_from_seg()
 	}
 	cdbdisp_clearCdbPgResults(&cdb_pgresults);
 
-	array = (Datum*) palloc(hash_get_num_entries(local_table_stats_map) * sizeof(Datum));
-
-	hash_seq_init(&iter, local_table_stats_map);
-
-	i = 0;
-
-	while ((entry = (DiskQuotaActiveTableEntry *) hash_seq_search(&iter)) != NULL)
-	{
-		array[i] = ObjectIdGetDatum(entry->tableoid);
-	}
-
-	return construct_array(array, (int) hash_get_num_entries(local_table_stats_map),
-	                       OIDOID,
-	                       sizeof(Oid), true, 'i');
+	elog(LOG, "The number of active table is %ld", hash_get_num_entries(local_table_stats_map));
+	return local_table_stats_map;
 }
 
 static HTAB*
@@ -996,9 +982,9 @@ pull_table_stats_from_seg(bool force)
 	char *sql;
 	HTAB *local_table_stats_map = NULL;
 	HASHCTL ctl;
-	ArrayType *array;
+	HTAB *local_active_table_maps;
 	StringInfoData buffer;
-	Datum array_string;
+	StringInfoData map_string;
 
 	Assert(Gp_role == GP_ROLE_DISPATCH);
 
@@ -1015,17 +1001,19 @@ pull_table_stats_from_seg(bool force)
 
 	if (force)
 	{
-		sql = "select * from diskquota.diskquota_fetch_active_table_stat(0, '{}'::oid[])";
+		sql = "select * from diskquota.diskquota_fetch_table_stat(0, '{}'::oid[])";
 	}
 	else
 	{
-		array = pull_active_list_from_seg();
+		local_active_table_maps = pull_active_list_from_seg();
+		map_string = convert_map_to_string(local_active_table_maps);
 		initStringInfo(&buffer);
-		array_string = DirectFunctionCall1(array_out, PointerGetDatum(array));
-		appendStringInfo(&buffer, "select * from diskquota.diskquota_fetch_active_table_stat(2, '%s'::oid[])",
-		DatumGetCString(array_string));
+		appendStringInfo(&buffer, "select * from diskquota.diskquota_fetch_table_stat(2, '%s'::oid[])",
+		map_string.data);
 		sql = buffer.data;
 	}
+
+	elog(LOG, "CHECK SPI QUERY is %s", sql);
 
 	CdbDispatchCommand(sql, DF_NONE, &cdb_pgresults);
 
@@ -1048,9 +1036,8 @@ pull_table_stats_from_seg(bool force)
 
 		for (j = 0; j < PQntuples(pgresult); j++)
 		{
-			tableOid = DatumGetObjectId(CStringGetDatum(PQgetvalue(pgresult, j, 0)));
-			tableSize = (Size) DatumGetInt64(CStringGetDatum(PQgetvalue(pgresult, j, 1)));
-
+			tableOid = atooid(PQgetvalue(pgresult, j, 0));
+			tableSize = (Size) atoll(PQgetvalue(pgresult, j, 1));
 
 			entry = (DiskQuotaActiveTableEntry *) hash_search(local_table_stats_map, &tableOid, HASH_ENTER, &found);
 
@@ -1067,10 +1054,38 @@ pull_table_stats_from_seg(bool force)
 		}
 
 	}
-
 	cdbdisp_clearCdbPgResults(&cdb_pgresults);
-
 	return local_table_stats_map;
-
 }
 
+static StringInfoData
+convert_map_to_string(HTAB *active_list)
+{
+	HASH_SEQ_STATUS iter;
+	StringInfoData buffer;
+	DiskQuotaActiveTableEntry *entry;
+	uint32 count = 0;
+	uint32 nitems = hash_get_num_entries(active_list);
+
+	initStringInfo(&buffer);
+	appendStringInfo(&buffer, "{");
+	elog(LOG, "Try to convert size of active table is %ld", hash_get_num_entries(active_list));
+	
+	hash_seq_init(&iter, active_list);
+
+	while ((entry = (DiskQuotaActiveTableEntry *) hash_seq_search(&iter)) != NULL)
+	{
+		count++;
+		if (count != nitems)
+		{
+			appendStringInfo(&buffer, "%d,", entry->tableoid);
+		}
+		else
+		{
+			appendStringInfo(&buffer, "%d", entry->tableoid);
+		}
+	}
+	appendStringInfo(&buffer, "}");
+
+	return buffer;
+}

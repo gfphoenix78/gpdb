@@ -30,4 +30,6 @@ extern int   diskquota_naptime;
 extern char *diskquota_monitored_database_list;
 extern int   diskquota_max_active_tables;
 
+extern Datum diskquota_fetch_table_stat(PG_FUNCTION_ARGS);
+
 #endif

@@ -26,6 +26,7 @@
 #include "utils/builtins.h"
 #include "utils/fmgroids.h"
 #include "cdb/cdbvars.h"
+#include "utils/relfilenodemap.h"
 
 #include "activetable.h"
 #include "diskquota.h"
@@ -133,9 +134,6 @@ HTAB* get_active_tables()
 	DiskQuotaActiveTableFileEntry *active_table_file_entry;
 	DiskQuotaActiveTableEntry *active_table_entry;
 
-	Relation relation;
-	HeapTuple tuple;
-	SysScanDesc relScan;
 	Oid relOid;
 
 	memset(&ctl, 0, sizeof(ctl));
@@ -184,45 +182,14 @@ HTAB* get_active_tables()
 								&ctl,
 								HASH_ELEM | HASH_CONTEXT | HASH_FUNCTION);
 
-	relation = heap_open(RelationRelationId, AccessShareLock);
 	/* traverse local active table map and calculate their file size. */
 	hash_seq_init(&iter, local_active_table_file_map);
 	/* scan whole local map, get the oid of each table and calculate the size of them */
 	while ((active_table_file_entry = (DiskQuotaActiveTableFileEntry *) hash_seq_search(&iter)) != NULL)
 	{
-		//Size tablesize;
 		bool found;
-		ScanKeyData skey[2];
-		Oid reltablespace;
 		
-		reltablespace = active_table_file_entry->tablespaceoid;
-
-		/* pg_class will show 0 when the value is actually MyDatabaseTableSpace */
-		if (reltablespace == MyDatabaseTableSpace)
-			reltablespace = 0;
-
-		/* set scan arguments */
-		memcpy(skey, relfilenode_skey, sizeof(skey));
-		skey[0].sk_argument = ObjectIdGetDatum(reltablespace);
-		skey[1].sk_argument = ObjectIdGetDatum(active_table_file_entry->relfilenode);
-		relScan = systable_beginscan(relation,
-									ClassTblspcRelfilenodeIndexId,
-									true,
-									NULL,
-									2,
-									skey);
-
-		tuple = systable_getnext(relScan);
-
-		if (!HeapTupleIsValid(tuple))
-		{
-			systable_endscan(relScan);
-			continue;
-		}
-		relOid = HeapTupleGetOid(tuple);
-
-		/* Call function directly to get size of table by oid */
-		//tablesize = (Size) DatumGetInt64(DirectFunctionCall1(pg_total_relation_size, ObjectIdGetDatum(relOid)));
+		relOid = RelidByRelfilenode(active_table_file_entry->tablespaceoid, active_table_file_entry->relfilenode);
 
 		active_table_entry = hash_search(local_active_table_stats_map, &relOid, HASH_ENTER, &found);
 		if (active_table_entry)
@@ -230,10 +197,8 @@ HTAB* get_active_tables()
 			active_table_entry->tableoid = relOid;
 			active_table_entry->tablesize = 0;
 		}
-		systable_endscan(relScan);
 	}
-	elog(DEBUG1, "active table number is:%ld", hash_get_num_entries(local_active_table_file_map));
-	heap_close(relation, AccessShareLock);
+	elog(LOG, "active table number is:%ld", hash_get_num_entries(local_active_table_file_map));
 	hash_destroy(local_active_table_file_map);
 	return local_active_table_stats_map;
 }
