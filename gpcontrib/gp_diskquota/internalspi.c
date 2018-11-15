@@ -204,17 +204,17 @@ get_active_tables_stats(ArrayType *array)
 			entry = (DiskQuotaActiveTableEntry *) hash_search(local_table, &relOid, HASH_ENTER, NULL);
 			entry->tableoid = relOid;
 		
-			/* avoid to generate ERROR if relOid is not existed (i.e. table has been droped) */	
-			if (get_rel_name(relOid) != NULL)
+			/* avoid to generate ERROR if relOid is not existed (i.e. table has been droped) */
+			PG_TRY();
 			{
-				
 				entry->tablesize = (Size) DatumGetInt64(DirectFunctionCall1(pg_total_relation_size,
-									ObjectIdGetDatum(relOid)));
+																			ObjectIdGetDatum(relOid)));
 			}
-			else
+			PG_CATCH();
 			{
 				entry->tablesize = 0;
 			}
+			PG_END_TRY();
 
 			ptr = att_addlength_pointer(ptr, typlen, ptr);
 			ptr = (char *) att_align_nominal(ptr, typalign);
