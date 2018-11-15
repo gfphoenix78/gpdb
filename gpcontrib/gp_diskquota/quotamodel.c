@@ -353,48 +353,37 @@ flush_local_black_map(void)
 	bool found;
 
 	LWLockAcquire(black_map_shm_lock->lock, LW_EXCLUSIVE);
-	// The code in try-block seems to be safe to release lock
-	// Just in case if we add some code which invoke `longjmp`
-	PG_TRY();
+	hash_seq_init(&iter, local_disk_quota_black_map);
+	while ((localblackentry = hash_seq_search(&iter)) != NULL)
 	{
-		hash_seq_init(&iter, local_disk_quota_black_map);
-		while ((localblackentry = hash_seq_search(&iter)) != NULL)
+		if (localblackentry->isexceeded)
 		{
-			if (localblackentry->isexceeded)
+			blackentry = (BlackMapEntry*) hash_search(disk_quota_black_map,
+							   (void *) &localblackentry->keyitem,
+							   HASH_ENTER_NULL, &found);
+			if (blackentry == NULL)
 			{
-				blackentry = (BlackMapEntry*) hash_search(disk_quota_black_map,
-								   (void *) &localblackentry->keyitem,
-								   HASH_ENTER_NULL, &found);
-				if (blackentry == NULL)
-				{
-					elog(WARNING, "shared disk quota black map size limit reached.");
-				}
-				else
-				{
-					/* new db objects which exceed quota limit */
-					if (!found)
-					{
-						blackentry->targetoid = localblackentry->keyitem.targetoid;
-						blackentry->databaseoid = MyDatabaseId;
-						blackentry->targettype = localblackentry->keyitem.targettype;
-					}
-				}
+				elog(WARNING, "shared disk quota black map size limit reached.");
 			}
 			else
 			{
-				/* db objects are removed or under quota limit in the new loop */
-				(void) hash_search(disk_quota_black_map,
-								   (void *) &localblackentry->keyitem,
-								   HASH_REMOVE, NULL);
+				/* new db objects which exceed quota limit */
+				if (!found)
+				{
+					blackentry->targetoid = localblackentry->keyitem.targetoid;
+					blackentry->databaseoid = MyDatabaseId;
+					blackentry->targettype = localblackentry->keyitem.targettype;
+				}
 			}
 		}
+		else
+		{
+			/* db objects are removed or under quota limit in the new loop */
+			(void) hash_search(disk_quota_black_map,
+							   (void *) &localblackentry->keyitem,
+							   HASH_REMOVE, NULL);
+		}
 	}
-	PG_CATCH();
-	{
-		LWLockRelease(black_map_shm_lock->lock);
-		PG_RE_THROW();
-	}
-	PG_END_TRY();
 	LWLockRelease(black_map_shm_lock->lock);
 }
 
@@ -418,31 +407,21 @@ reset_local_black_map(void)
 
 	/* get black map copy from shared black map */
 	LWLockAcquire(black_map_shm_lock->lock, LW_SHARED);
-	PG_TRY();
+	hash_seq_init(&iter, disk_quota_black_map);
+	while ((blackentry = hash_seq_search(&iter)) != NULL)
 	{
-		hash_seq_init(&iter, disk_quota_black_map);
-		while ((blackentry = hash_seq_search(&iter)) != NULL)
+		/* only reset entries for current db */
+		if (blackentry->databaseoid == MyDatabaseId)
 		{
-			/* only reset entries for current db */
-			if (blackentry->databaseoid == MyDatabaseId)
+			localblackentry = (LocalBlackMapEntry*) hash_search(local_disk_quota_black_map,
+								(void *) blackentry,
+								HASH_ENTER, &found);
+			if (!found)
 			{
-				localblackentry = (LocalBlackMapEntry*) hash_search(local_disk_quota_black_map,
-									(void *) blackentry,
-									HASH_ENTER, &found);
-				if (!found)
-				{
-					localblackentry->isexceeded = false;
-				}
+				localblackentry->isexceeded = false;
 			}
 		}
 	}
-	PG_CATCH();
-	{
-		/* make sure that we release lock when something is wrong */
-		LWLockRelease(black_map_shm_lock->lock);
-		PG_RE_THROW();
-	}
-	PG_END_TRY();
 	LWLockRelease(black_map_shm_lock->lock);
 
 }
@@ -893,55 +872,41 @@ quota_check_common(Oid reloid)
 	get_rel_owner_schema(reloid, &ownerOid, &nsOid);
 	LWLockAcquire(black_map_shm_lock->lock, LW_SHARED);
 
-	// How much does setjmp/longjmp cost?
-	// Maybe we can put lock-release code just before `ereport(ERROR,...)`
-	PG_TRY();
+	elog(DEBUG1,"dispatch quota check schema:%u", nsOid);
+	if ( nsOid != InvalidOid)
 	{
-		elog(DEBUG1,"dispatch quota check schema:%u", nsOid);
-		if ( nsOid != InvalidOid)
+		keyitem.targetoid = nsOid;
+		keyitem.databaseoid = MyDatabaseId;
+		keyitem.targettype = NAMESPACE_QUOTA;
+		hash_search(disk_quota_black_map,
+				&keyitem,
+				HASH_FIND, &found);
+		if (found)
 		{
-			keyitem.targetoid = nsOid;
-			keyitem.databaseoid = MyDatabaseId;
-			keyitem.targettype = NAMESPACE_QUOTA;
-			hash_search(disk_quota_black_map,
-					&keyitem,
-					HASH_FIND, &found);
-			if (found)
-			{
-				ereport(ERROR,
-						(errcode(ERRCODE_DISK_FULL),
-						 errmsg("schema's disk space quota exceeded with name:%s", get_namespace_name(nsOid))));
-				return false;
-			}
-
+			ereport(ERROR,
+					(errcode(ERRCODE_DISK_FULL),
+					 errmsg("schema's disk space quota exceeded with name:%s", get_namespace_name(nsOid))));
+			return false;
 		}
 
-		if ( ownerOid != InvalidOid)
+	}
+
+	if ( ownerOid != InvalidOid)
+	{
+		keyitem.targetoid = ownerOid;
+		keyitem.databaseoid = MyDatabaseId;
+		keyitem.targettype = ROLE_QUOTA;
+		hash_search(disk_quota_black_map,
+				&keyitem,
+				HASH_FIND, &found);
+		if (found)
 		{
-			keyitem.targetoid = ownerOid;
-			keyitem.databaseoid = MyDatabaseId;
-			keyitem.targettype = ROLE_QUOTA;
-			hash_search(disk_quota_black_map,
-					&keyitem,
-					HASH_FIND, &found);
-			if (found)
-			{
-				ereport(ERROR,
-						(errcode(ERRCODE_DISK_FULL),
-						 errmsg("role's disk space quota exceeded with name:%s", GetUserNameFromId(ownerOid))));
-				return false;
-			}
+			ereport(ERROR,
+					(errcode(ERRCODE_DISK_FULL),
+					 errmsg("role's disk space quota exceeded with name:%s", GetUserNameFromId(ownerOid))));
+			return false;
 		}
 	}
-	PG_CATCH();
-	{
-		/* Make sure we release lock when disk-quota exceeded.
-		 * This is essential, or we cann't update black list any more.
-		 */
-		LWLockRelease(black_map_shm_lock->lock);
-		PG_RE_THROW();
-	}
-	PG_END_TRY();
 	LWLockRelease(black_map_shm_lock->lock);
 	return true;
 }
