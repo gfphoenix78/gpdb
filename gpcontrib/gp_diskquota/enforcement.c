@@ -18,18 +18,18 @@
 #include "cdb/cdbdisp_async.h"
 #include "executor/executor.h"
 #include "storage/bufmgr.h"
-
+#include "utils/resowner.h"
 #include "diskquota.h"
 
 static bool quota_check_ExecCheckRTPerms(List *rangeTable, bool ereport_on_violation);
-static bool quota_check_ReadBufferExtendCheckPerms(Oid reloid, BlockNumber blockNum);
 static bool quota_check_DispatcherCheckPerms(void);
 
 static ExecutorCheckPerms_hook_type prev_ExecutorCheckPerms_hook;
-static BufferExtendCheckPerms_hook_type prev_BufferExtendCheckPerms_hook;
 static DispatcherCheckPerms_hook_type prev_DispatcherCheckPerms_hook;
+static void diskquota_free_callback(ResourceReleasePhase phase, bool isCommit, bool isTopLevel, void *arg);
 
-static List *checked_reloid_list;
+static List *checked_reloid_list = NIL;
+
 /*
  * Initialize enforcement hooks.
  */
@@ -40,15 +40,31 @@ init_disk_quota_enforcement(void)
 	prev_ExecutorCheckPerms_hook = ExecutorCheckPerms_hook;
 	ExecutorCheckPerms_hook = quota_check_ExecCheckRTPerms;
 
-	/* enforcement hook during query is loading data*/
-	prev_BufferExtendCheckPerms_hook = BufferExtendCheckPerms_hook;
-	BufferExtendCheckPerms_hook = quota_check_ReadBufferExtendCheckPerms;
-
 	/* enforcement hook during query is loading data */
 	prev_DispatcherCheckPerms_hook =DispatcherCheckPerms_hook;
 	DispatcherCheckPerms_hook = quota_check_DispatcherCheckPerms;
+	
+	RegisterResourceReleaseCallback(diskquota_free_callback, NULL);
 }
 
+/*
+ * Reset checked reloid list
+ * This maybe called multiple times at different resource relase
+ * phase, but it's safe to reset the checked_reloid_list.
+ */
+static void
+diskquota_free_callback(ResourceReleasePhase phase,
+					 bool isCommit,
+					 bool isTopLevel,
+					 void *arg)
+{
+	if (checked_reloid_list != NIL)
+	{
+		list_free(checked_reloid_list);
+		checked_reloid_list = NIL;
+	}
+	return;
+}
 /*
  * Enformcent hook function before query is loading data. Throws an error if 
  * you try to INSERT, UPDATE or COPY into a table, and the quota has been exceeded.
@@ -58,8 +74,11 @@ quota_check_ExecCheckRTPerms(List *rangeTable, bool ereport_on_violation)
 {
 	ListCell   *l;
 
-	list_free(checked_reloid_list);
-	checked_reloid_list = NIL;
+	if (checked_reloid_list != NIL)
+	{
+		list_free(checked_reloid_list);
+		checked_reloid_list = NIL;
+	}
 
 	foreach(l, rangeTable)
 	{
@@ -80,28 +99,6 @@ quota_check_ExecCheckRTPerms(List *rangeTable, bool ereport_on_violation)
 		quota_check_common(rte->relid);
 		checked_reloid_list = lappend_oid(checked_reloid_list, rte->relid);
 	}
-
-	return true;
-}
-
-/*
- * Enformcent hook function when query is loading data. Throws an error if 
- * you try to extend a buffer page, and the quota has been exceeded.
- */
-static bool
-quota_check_ReadBufferExtendCheckPerms(Oid reloid, BlockNumber blockNum)
-{
-	bool isExtend;
-
-	isExtend = (blockNum == P_NEW);
-	/* if not buffer extend, we could skip quota limit check*/
-	if (!isExtend)
-	{
-		return true;
-	}
-
-	/* Perform the check as the relation's owner and namespace */
-	quota_check_common(reloid);
 	return true;
 }
 
