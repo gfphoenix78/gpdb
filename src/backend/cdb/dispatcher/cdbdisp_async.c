@@ -543,7 +543,7 @@ checkDispatchResult(CdbDispatcherState *ds,
 			}
 
 			/* Hook to check permissions when dispatcher timeout */
-			if (DispatcherCheckPerms_hook)
+			if (pParms->waitMode == DISPATCH_WAIT_NONE && DispatcherCheckPerms_hook)
 			{
 				(*DispatcherCheckPerms_hook)();
 			}

@@ -150,37 +150,24 @@ HTAB* get_active_tables()
 	/* Move active table from shared memory to local active table map */
 	LWLockAcquire(active_table_shm_lock->lock, LW_EXCLUSIVE);
 
-	PG_TRY();
-	{
-		hash_seq_init(&iter, active_tables_map);
+	hash_seq_init(&iter, active_tables_map);
 
-		while ((active_table_file_entry = (DiskQuotaActiveTableFileEntry *) hash_seq_search(&iter)) != NULL)
+	while ((active_table_file_entry = (DiskQuotaActiveTableFileEntry *) hash_seq_search(&iter)) != NULL)
+	{
+		bool  found;
+		DiskQuotaActiveTableFileEntry *entry;
+
+		if (active_table_file_entry->dbid != MyDatabaseId)
 		{
-			bool  found;
-			DiskQuotaActiveTableFileEntry *entry;
-
-			if (active_table_file_entry->dbid != MyDatabaseId)
-			{
-				continue;
-			}
-
-			/* Add the active table entry into local hash table*/
-			entry = hash_search(local_active_table_file_map, active_table_file_entry, HASH_ENTER, &found);
-			if (entry)
-				*entry = *active_table_file_entry;
-			hash_search(active_tables_map, active_table_file_entry, HASH_REMOVE, NULL);
+			continue;
 		}
+
+		/* Add the active table entry into local hash table*/
+		entry = hash_search(local_active_table_file_map, active_table_file_entry, HASH_ENTER, &found);
+		if (entry)
+			*entry = *active_table_file_entry;
+		hash_search(active_tables_map, active_table_file_entry, HASH_REMOVE, NULL);
 	}
-	PG_CATCH();
-	{
-		/*
-		 * when code comes here, it's out of memory.
-		 * But, it's better to run continuely.
-		 */
-		LWLockRelease(active_table_shm_lock->lock);
-		PG_RE_THROW();
-	}
-	PG_END_TRY();
 	LWLockRelease(active_table_shm_lock->lock);
 
 	memset(&ctl, 0, sizeof(ctl));

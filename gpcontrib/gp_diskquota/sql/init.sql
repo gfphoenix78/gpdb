@@ -14,7 +14,7 @@
 \! echo $?
 
 -- start_ignore
-\! gpstop -rai > /dev/null
+\! gpstop -raf > /dev/null
 -- end_ignore
 \! echo $?
 
