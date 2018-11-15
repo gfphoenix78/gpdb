@@ -21,6 +21,8 @@
 #include "utils/resowner.h"
 #include "diskquota.h"
 
+#define CHECKED_OID_LIST_NUM 64
+
 static bool quota_check_ExecCheckRTPerms(List *rangeTable, bool ereport_on_violation);
 static bool quota_check_DispatcherCheckPerms(void);
 
@@ -28,7 +30,9 @@ static ExecutorCheckPerms_hook_type prev_ExecutorCheckPerms_hook;
 static DispatcherCheckPerms_hook_type prev_DispatcherCheckPerms_hook;
 static void diskquota_free_callback(ResourceReleasePhase phase, bool isCommit, bool isTopLevel, void *arg);
 
-static List *checked_reloid_list = NIL;
+/* result relation need to be checked in dispatcher */
+static Oid checked_reloid_list[CHECKED_OID_LIST_NUM];
+static int checked_reloid_list_count = 0;
 
 /*
  * Initialize enforcement hooks.
@@ -44,6 +48,8 @@ init_disk_quota_enforcement(void)
 	prev_DispatcherCheckPerms_hook =DispatcherCheckPerms_hook;
 	DispatcherCheckPerms_hook = quota_check_DispatcherCheckPerms;
 	
+	/* setup and reset the result relaiton checked list */
+	memset(checked_reloid_list, 0, sizeof(Oid)*CHECKED_OID_LIST_NUM);
 	RegisterResourceReleaseCallback(diskquota_free_callback, NULL);
 }
 
@@ -58,11 +64,8 @@ diskquota_free_callback(ResourceReleasePhase phase,
 					 bool isTopLevel,
 					 void *arg)
 {
-	if (checked_reloid_list != NIL)
-	{
-		list_free(checked_reloid_list);
-		checked_reloid_list = NIL;
-	}
+
+	checked_reloid_list_count = 0;
 	return;
 }
 /*
@@ -73,12 +76,6 @@ static bool
 quota_check_ExecCheckRTPerms(List *rangeTable, bool ereport_on_violation)
 {
 	ListCell   *l;
-
-	if (checked_reloid_list != NIL)
-	{
-		list_free(checked_reloid_list);
-		checked_reloid_list = NIL;
-	}
 
 	foreach(l, rangeTable)
 	{
@@ -97,7 +94,8 @@ quota_check_ExecCheckRTPerms(List *rangeTable, bool ereport_on_violation)
 
 		/* Perform the check as the relation's owner and namespace */
 		quota_check_common(rte->relid);
-		checked_reloid_list = lappend_oid(checked_reloid_list, rte->relid);
+		checked_reloid_list[checked_reloid_list_count++] = rte->relid;
+
 	}
 	return true;
 }
@@ -109,13 +107,11 @@ quota_check_ExecCheckRTPerms(List *rangeTable, bool ereport_on_violation)
 static bool
 quota_check_DispatcherCheckPerms(void)
 {
-	ListCell   *lc;
-	if(checked_reloid_list == NIL)
-		return true;
+	int i;
 	/* Perform the check as the relation's owner and namespace */
-	foreach(lc, checked_reloid_list)
+	for(i = 0; i< checked_reloid_list_count; i++)
 	{
-		Oid relid = (Oid)lfirst_oid(lc);
+		Oid relid = checked_reloid_list[i];
 		quota_check_common(relid);
 	}
 	return true;
