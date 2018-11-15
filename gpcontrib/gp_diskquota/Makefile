@@ -6,7 +6,10 @@ EXTENSION = diskquota
 DATA = diskquota--1.0.sql
 SRCDIR = ./
 FILES = $(shell find $(SRCDIR) -type f -name "*.c")
-OBJS = diskquota.o enforcement.o quotamodel.o activetable.o
+OBJS = diskquota.o enforcement.o quotamodel.o activetable.o internalspi.o
+PG_CPPFLAGS = -I$(libpq_srcdir)
+SHLIB_LINK = $(libpq)
+SHLIB_PREREQS = submake-libpq
 
 REGRESS = dummy
 REGRESS_OPTS = --temp-config=test_diskquota.conf --temp-instance=/tmp/pg_diskquota_test  --schedule=diskquota_schedule

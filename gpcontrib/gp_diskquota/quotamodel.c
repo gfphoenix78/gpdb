@@ -40,6 +40,14 @@
 #include "utils/snapmgr.h"
 #include "utils/syscache.h"
 
+#include "cdb/cdbdisp_query.h"
+#include "cdb/cdbdispatchresult.h"
+#include "cdb/cdbvars.h"
+#include "cdb/cdbutil.h"
+#include "libpq-fe.h"
+
+#include <stdlib.h>
+
 #include "activetable.h"
 #include "diskquota.h"
 
@@ -57,7 +65,11 @@ typedef struct QuotaLimitEntry QuotaLimitEntry;
 typedef struct BlackMapEntry BlackMapEntry;
 typedef struct LocalBlackMapEntry LocalBlackMapEntry;
 
-/* local cache of table disk size and corresponding schema and owner */
+/*
+ * local cache of table disk size and corresponding schema and owner
+ * For GPDB:
+ * reloid + segmentid are the key of the hash table
+ */
 struct TableSizeEntry
 {
 	Oid			reloid;
@@ -132,6 +144,8 @@ static void update_role_map(Oid owneroid, int64 updatesize);
 static void remove_namespace_map(Oid namespaceoid);
 static void remove_role_map(Oid owneroid);
 static bool load_quotas(void);
+static HTAB* pull_table_stats_from_seg(bool force);
+static StringInfoData convert_map_to_string(HTAB *active_list);
 
 static Size DiskQuotaShmemSize(void);
 static void disk_quota_shmem_startup(void);
@@ -230,7 +244,7 @@ init_disk_quota_model(void)
 	hash_ctl.hash = oid_hash;
 
 	table_size_map = hash_create("TableSizeEntry map",
-								1024,
+								1024 * 8,
 								&hash_ctl,
 								HASH_ELEM | HASH_CONTEXT | HASH_FUNCTION);
 
@@ -568,11 +582,11 @@ static void
 calculate_table_disk_usage(bool force)
 {
 	bool found;
-	bool active_tbl_found;
+	bool active_tbl_found = false;
 	Relation	classRel;
 	HeapTuple	tuple;
 	HeapScanDesc relScan;
-	TableSizeEntry *tsentry;
+	TableSizeEntry *tsentry = NULL;
 	Oid			relOid;
 	HASH_SEQ_STATUS iter;
 	HTAB *local_active_table_stat_map;
@@ -581,7 +595,7 @@ calculate_table_disk_usage(bool force)
 	classRel = heap_open(RelationRelationId, AccessShareLock);
 	relScan = heap_beginscan_catalog(classRel, 0, NULL);
 
-	local_active_table_stat_map = get_active_tables();
+	local_active_table_stat_map = pull_table_stats_from_seg(force);
 
 	/* unset is_exist flag for tsentry in table_size_map*/
 	hash_seq_init(&iter, table_size_map);
@@ -599,6 +613,7 @@ calculate_table_disk_usage(bool force)
 	{
 		Form_pg_class classForm = (Form_pg_class) GETSTRUCT(tuple);
 		found = false;
+
 		if (classForm->relkind != RELKIND_RELATION &&
 			classForm->relkind != RELKIND_MATVIEW)
 			continue;
@@ -611,14 +626,22 @@ calculate_table_disk_usage(bool force)
 		tsentry = (TableSizeEntry *)hash_search(table_size_map,
 							 &relOid,
 							 HASH_ENTER, &found);
+
+		if(!found)
+		{
+			tsentry->totalsize = 0;
+			tsentry->owneroid = 0;
+			tsentry->namespaceoid = 0;
+			tsentry->reloid = 0;
+		}
+
 		/* mark tsentry is_exist */
-		if (tsentry)
-			tsentry->is_exist = true;
+		tsentry->is_exist = true;
 
 		active_table_entry = (DiskQuotaActiveTableEntry *) hash_search(local_active_table_stat_map, &relOid, HASH_FIND, &active_tbl_found);
 
 		/* skip to recalculate the tables which are not in active list and not at initializatio stage*/
-		if(active_tbl_found || force)
+		if(active_tbl_found)
 		{
 
 			/* namespace and owner may be changed since last check*/
@@ -628,29 +651,20 @@ calculate_table_disk_usage(bool force)
 				tsentry->reloid = relOid;
 				tsentry->namespaceoid = classForm->relnamespace;
 				tsentry->owneroid = classForm->relowner;
-				if (!force)
-				{
-					tsentry->totalsize = (int64) active_table_entry->tablesize;
-				}
-				else
-				{
-					tsentry->totalsize =  DatumGetInt64(DirectFunctionCall1(pg_total_relation_size,
-														ObjectIdGetDatum(relOid)));
-				}
+				tsentry->totalsize = (int64) active_table_entry->tablesize;
 				update_namespace_map(tsentry->namespaceoid, tsentry->totalsize);
 				update_role_map(tsentry->owneroid, tsentry->totalsize);
 			}
 			else
 			{
-				/* if not new table in table_size_map, it must be in active table list */
-				if (active_tbl_found)
-				{
-					int64 oldtotalsize = tsentry->totalsize;
-					tsentry->totalsize = (int64) active_table_entry->tablesize;
-					update_namespace_map(tsentry->namespaceoid, tsentry->totalsize - oldtotalsize);
-					update_role_map(tsentry->owneroid, tsentry->totalsize - oldtotalsize);
-				}
+			/* if not new table in table_size_map, it must be in active table list */
+				int64 oldtotalsize = tsentry->totalsize;
+				tsentry->totalsize = (int64) active_table_entry->tablesize;
+				update_namespace_map(tsentry->namespaceoid, tsentry->totalsize - oldtotalsize);
+				update_role_map(tsentry->owneroid, tsentry->totalsize - oldtotalsize);
 			}
+
+
 		}
 
 		/* if schema change, transfer the file size */
@@ -667,6 +681,7 @@ calculate_table_disk_usage(bool force)
 			tsentry->owneroid = classForm->relowner;
 			update_role_map(tsentry->owneroid, tsentry->totalsize);
 		}
+
 	}
 
 	heap_endscan(relScan);
@@ -931,3 +946,180 @@ quota_check_common(Oid reloid)
 	return true;
 }
 
+static HTAB*
+pull_active_list_from_seg()
+{
+	CdbPgResults cdb_pgresults = {NULL, 0};
+	int i, j;
+	char *sql;
+	HTAB *local_table_stats_map = NULL;
+	HASHCTL ctl;
+	DiskQuotaActiveTableEntry *entry;
+
+	memset(&ctl, 0, sizeof(ctl));
+	ctl.keysize = sizeof(Oid);
+	ctl.entrysize = sizeof(DiskQuotaActiveTableEntry);
+	ctl.hcxt = CurrentMemoryContext;
+	ctl.hash = oid_hash;
+
+	local_table_stats_map = hash_create("local active table map with relfilenode info",
+	                                    1024,
+	                                    &ctl,
+	                                    HASH_ELEM | HASH_CONTEXT | HASH_FUNCTION);
+
+
+	sql = "select * from diskquota.diskquota_fetch_table_stat(1, '{}'::oid[])";
+
+	CdbDispatchCommand(sql, DF_NONE, &cdb_pgresults);
+
+	for (i = 0; i < cdb_pgresults.numResults; i++) {
+
+		Oid tableOid;
+		bool found;
+
+		struct pg_result *pgresult = cdb_pgresults.pg_results[i];
+
+		if (PQresultStatus(pgresult) != PGRES_TUPLES_OK) {
+			cdbdisp_clearCdbPgResults(&cdb_pgresults);
+			ereport(ERROR,
+			        (errmsg("unexpected result from segment: %d",
+			                PQresultStatus(pgresult))));
+		}
+
+		for (j = 0; j < PQntuples(pgresult); j++)
+		{
+			tableOid = atooid(PQgetvalue(pgresult, j, 0));
+
+			elog(LOG, "get oid is %d", tableOid);
+
+			entry = (DiskQuotaActiveTableEntry *) hash_search(local_table_stats_map, &tableOid, HASH_ENTER, &found);
+
+			if(!found)
+			{
+				entry->tableoid = tableOid;
+				entry->tablesize = 0;
+			}
+
+		}
+	}
+	cdbdisp_clearCdbPgResults(&cdb_pgresults);
+
+	elog(LOG, "The number of active table is %ld", hash_get_num_entries(local_table_stats_map));
+	return local_table_stats_map;
+}
+
+static HTAB*
+pull_table_stats_from_seg(bool force)
+{
+	CdbPgResults cdb_pgresults = {NULL, 0};
+	int i, j;
+	char *sql;
+	HTAB *local_table_stats_map = NULL;
+	HASHCTL ctl;
+	HTAB *local_active_table_maps;
+	StringInfoData buffer;
+	StringInfoData map_string;
+
+	Assert(Gp_role == GP_ROLE_DISPATCH);
+
+	memset(&ctl, 0, sizeof(ctl));
+	ctl.keysize = sizeof(Oid);
+	ctl.entrysize = sizeof(DiskQuotaActiveTableEntry);
+	ctl.hcxt = CurrentMemoryContext;
+	ctl.hash = oid_hash;
+
+	local_table_stats_map = hash_create("local active table map with relfilenode info",
+	                                    1024,
+	                                    &ctl,
+	                                    HASH_ELEM | HASH_CONTEXT | HASH_FUNCTION);
+
+	if (force)
+	{
+		sql = "select * from diskquota.diskquota_fetch_table_stat(0, '{}'::oid[])";
+	}
+	else
+	{
+		local_active_table_maps = pull_active_list_from_seg();
+		map_string = convert_map_to_string(local_active_table_maps);
+		initStringInfo(&buffer);
+		appendStringInfo(&buffer, "select * from diskquota.diskquota_fetch_table_stat(2, '%s'::oid[])",
+		map_string.data);
+		sql = buffer.data;
+	}
+
+	elog(LOG, "CHECK SPI QUERY is %s", sql);
+
+	CdbDispatchCommand(sql, DF_NONE, &cdb_pgresults);
+
+	/* collect data from each segment */
+	for (i = 0; i < cdb_pgresults.numResults; i++) {
+
+		Size tableSize;
+		bool found;
+		Oid tableOid;
+		DiskQuotaActiveTableEntry *entry;
+
+		struct pg_result *pgresult = cdb_pgresults.pg_results[i];
+
+		if (PQresultStatus(pgresult) != PGRES_TUPLES_OK) {
+			cdbdisp_clearCdbPgResults(&cdb_pgresults);
+			ereport(ERROR,
+			        (errmsg("unexpected result from segment: %d",
+			                PQresultStatus(pgresult))));
+		}
+
+		for (j = 0; j < PQntuples(pgresult); j++)
+		{
+			tableOid = atooid(PQgetvalue(pgresult, j, 0));
+			tableSize = (Size) atoll(PQgetvalue(pgresult, j, 1));
+
+			entry = (DiskQuotaActiveTableEntry *) hash_search(local_table_stats_map, &tableOid, HASH_ENTER, &found);
+
+			if (!found)
+			{
+				entry->tableoid = tableOid;
+				entry->tablesize = tableSize;
+			}
+			else
+			{
+				entry->tablesize = entry->tablesize + tableSize;
+			}
+
+		}
+
+	}
+	cdbdisp_clearCdbPgResults(&cdb_pgresults);
+	return local_table_stats_map;
+}
+
+static StringInfoData
+convert_map_to_string(HTAB *active_list)
+{
+	HASH_SEQ_STATUS iter;
+	StringInfoData buffer;
+	DiskQuotaActiveTableEntry *entry;
+	uint32 count = 0;
+	uint32 nitems = hash_get_num_entries(active_list);
+
+	initStringInfo(&buffer);
+	appendStringInfo(&buffer, "{");
+	elog(LOG, "Try to convert size of active table is %ld", hash_get_num_entries(active_list));
+	
+	hash_seq_init(&iter, active_list);
+
+	while ((entry = (DiskQuotaActiveTableEntry *) hash_seq_search(&iter)) != NULL)
+	{
+		count++;
+		if (count != nitems)
+		{
+			appendStringInfo(&buffer, "%d,", entry->tableoid);
+		}
+		else
+		{
+			appendStringInfo(&buffer, "%d", entry->tableoid);
+		}
+	}
+	appendStringInfo(&buffer, "}");
+
+	return buffer;
+}
