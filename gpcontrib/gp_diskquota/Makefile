@@ -12,7 +12,14 @@ SHLIB_LINK = $(libpq)
 SHLIB_PREREQS = submake-libpq
 
 REGRESS = dummy
-REGRESS_OPTS = --temp-config=test_diskquota.conf --temp-instance=/tmp/pg_diskquota_test  --schedule=diskquota_schedule
-PG_CONFIG = pg_config
-PGXS := $(shell $(PG_CONFIG) --pgxs)
+REGRESS_OPTS = --schedule=diskquota_schedule
+
+ifdef USE_PGXS
+PGXS := $(shell pg_config --pgxs)
 include $(PGXS)
+else
+subdir = contrib/gp_diskquota
+top_builddir = ../..
+include $(top_builddir)/src/Makefile.global
+include $(top_srcdir)/contrib/contrib-global.mk
+endif
