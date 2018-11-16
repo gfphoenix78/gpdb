@@ -1,7 +1,10 @@
 CREATE EXTENSION diskquota;
+-- start_ignore
+\! gpstop -u
+-- end_ignore
 SELECT pg_sleep(1);
 \! cp data/csmall.txt /tmp/csmall.txt
-SELECT pg_sleep(5);
+SELECT pg_sleep(15);
 
 -- prepare a schema that has reached quota limit
 CREATE SCHEMA badquota;

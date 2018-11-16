@@ -20,7 +20,7 @@ cd "\${GPDB_SRC_DIR}/gpAux"
 source gpdemo/gpdemo-env.sh
 
 cd "\${GPDB_SRC_DIR}/gpcontrib/gp_diskquota"
-make installcheck 
+make installcheck USE_PGXS=1
 
 [ -s regression.diffs ] && cat regression.diffs && exit 1
 exit 0

@@ -6,7 +6,7 @@ SELECT pg_sleep(1);
 (1 row)
 
 \! cp data/csmall.txt /tmp/csmall.txt
-SELECT pg_sleep(5);
+SELECT pg_sleep(15);
  pg_sleep 
 ----------
  

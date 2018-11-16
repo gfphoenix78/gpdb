@@ -4,6 +4,11 @@
 \! echo $?
 
 -- start_ignore
+\! gpstop -raf > /dev/null
+-- end_ignore
+\! echo $?
+
+-- start_ignore
 \! gpconfig -c diskquota.monitor_databases -v contrib_regression > /dev/null
 -- end_ignore
 \! echo $?
@@ -14,7 +19,7 @@
 \! echo $?
 
 -- start_ignore
-\! gpstop -raf > /dev/null
+\! gpstop -u > /dev/null
 -- end_ignore
 \! echo $?
 
