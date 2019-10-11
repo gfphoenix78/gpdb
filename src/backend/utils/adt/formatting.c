@@ -1102,6 +1102,7 @@ NUMDesc_prepare(NUMDesc *num, FormatNode *n, char *func)
 		case NUM_D:
 			num->flag |= NUM_F_LDECIMAL;
 			num->need_locale = TRUE;
+			/* fallthrough */
 		case NUM_DEC:
 			if (IS_DECIMAL(num))
 			{
