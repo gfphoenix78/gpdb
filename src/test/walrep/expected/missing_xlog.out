@@ -170,11 +170,13 @@ select substring(pg_switch_xlog()::text, 0, 0) from gp_dist_random('gp_id') wher
  
 (1 row)
 
--- hide old xlog on segment 0
-select move_xlog((select datadir || '/pg_xlog' from gp_segment_configuration c where c.role='p' and c.content=0), '/tmp/missing_xlog');
- move_xlog 
------------
- 
+-- generate wal sender error
+select gp_inject_fault_infinite('wal_sender_error', 'skip', dbid)
+from gp_segment_configuration
+where preferred_role='p' and content=0;
+ gp_inject_fault_infinite 
+--------------------------
+ Success:
 (1 row)
 
 -- bring the mirror back up
@@ -198,11 +200,13 @@ select sync_error from gp_stat_replication where gp_segment_id = 0;
  walread
 (1 row)
 
--- bring the missing xlog back on segment 0
-select move_xlog('/tmp/missing_xlog', (select datadir || '/pg_xlog' from gp_segment_configuration c where c.role='p' and c.content=0));
- move_xlog 
------------
- 
+-- reset wal sender error
+select gp_inject_fault('wal_sender_error', 'reset', dbid)
+from gp_segment_configuration
+where preferred_role='p' and content=0;
+ gp_inject_fault 
+-----------------
+ Success:
 (1 row)
 
 -- force the WAL segment to switch over from after previous pg_switch_xlog().

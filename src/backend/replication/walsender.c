@@ -2187,6 +2187,14 @@ XLogRead(char *buf, XLogRecPtr startptr, Size count)
 
 		startoff = recptr % XLogSegSize;
 
+#ifdef FAULT_INJECTOR
+		if (SIMPLE_FAULT_INJECTOR("wal_sender_error") == FaultInjectorTypeSkip)
+		{
+			WalSndCtl->error = WALSNDERROR_WALREAD;
+			ereport(ERROR, (errmsg("WalSnd: fake error")));
+		}
+#endif
+
 		if (sendFile < 0 || !XLByteInSeg(recptr, sendSegNo))
 		{
 			char		path[MAXPGPATH];

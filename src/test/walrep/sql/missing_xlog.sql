@@ -147,8 +147,10 @@ checkpoint;
 -- substring() function is used to ignore the output, but not the error
 select substring(pg_switch_xlog()::text, 0, 0) from gp_dist_random('gp_id') where gp_segment_id = 0;
 
--- hide old xlog on segment 0
-select move_xlog((select datadir || '/pg_xlog' from gp_segment_configuration c where c.role='p' and c.content=0), '/tmp/missing_xlog');
+-- generate wal sender error
+select gp_inject_fault_infinite('wal_sender_error', 'skip', dbid)
+from gp_segment_configuration
+where preferred_role='p' and content=0;
 
 -- bring the mirror back up
 select pg_ctl((select datadir from gp_segment_configuration c where c.role='m' and c.content=0), 'start', (select port from gp_segment_configuration where content = 0 and preferred_role = 'm'));
@@ -157,8 +159,10 @@ select pg_ctl((select datadir from gp_segment_configuration c where c.role='m' a
 select wait_for_replication_error('walread', 0, 500);
 select sync_error from gp_stat_replication where gp_segment_id = 0;
 
--- bring the missing xlog back on segment 0
-select move_xlog('/tmp/missing_xlog', (select datadir || '/pg_xlog' from gp_segment_configuration c where c.role='p' and c.content=0));
+-- reset wal sender error
+select gp_inject_fault('wal_sender_error', 'reset', dbid)
+from gp_segment_configuration
+where preferred_role='p' and content=0;
 
 -- force the WAL segment to switch over from after previous pg_switch_xlog().
 create temp table dummy2 (id int4) distributed randomly;
