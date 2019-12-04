@@ -7,7 +7,7 @@ top_builddir = ../../..
 include $(top_builddir)/src/Makefile.global
 
 REGRESS = setup
-REGRESS += replication_views_mirrored missing_xlog walreceiver generate_ao_xlog generate_aoco_xlog
+REGRESS += replication_views_mirrored sync_error walreceiver generate_ao_xlog generate_aoco_xlog
 REGRESS_OPTS = --load-extension=gp_inject_fault
 
 NO_PGXS = 1

@@ -1,6 +1,7 @@
 -- start_ignore
 create language plpythonu;
 -- end_ignore
+
 create or replace function pg_ctl(datadir text, command text, port int)
 returns text as $$
     import subprocess
@@ -18,15 +19,7 @@ returns text as $$
 
     return subprocess.check_output(cmd, stderr=subprocess.STDOUT, shell=True).replace('.', '')
 $$ language plpythonu;
-create or replace function move_xlog(source text, dest text)
-returns text as $$
-	import subprocess
 
-	cmd = 'mkdir -p %s; ' % dest
-	cmd = cmd + 'mv %s/0* %s' % (source, dest)
-
-	return subprocess.check_output(cmd, stderr=subprocess.STDOUT, shell=True).replace('.', '')
-$$ language plpythonu;
 -- Issue a checkpoint, and wait for it to be replayed on all segments.
 create or replace function checkpoint_and_wait_for_replication_replay (retries int) returns bool as
 $$
@@ -87,6 +80,7 @@ begin
 	end loop;
 end;
 $$ language plpgsql;
+
 create or replace function wait_for_replication_error (expected_error text, segment_id int, retries int) returns bool as
 $$
 declare
@@ -105,6 +99,7 @@ begin
 	end loop;
 end;
 $$ language plpgsql;
+
 -- function to wait for mirror to come up in sync (10 minute timeout)
 create or replace function wait_for_mirror_sync(contentid smallint)
 	returns void as $$
@@ -121,13 +116,9 @@ perform pg_sleep(0.5);
 end loop;
 end;
 $$ language plpgsql;
+
 -- checkpoint to ensure clean xlog replication before bring down mirror
 select checkpoint_and_wait_for_replication_replay(500);
-NOTICE:  table "dummy" does not exist, skipping
- checkpoint_and_wait_for_replication_replay 
---------------------------------------------
- t
-(1 row)
 
 -- Prevent FTS from probing segments as we don't want a change in
 -- cluster configuration to be triggered after the mirror is stoped
@@ -135,135 +126,49 @@ NOTICE:  table "dummy" does not exist, skipping
 -- triggered immediately, rather that waiting until the next probe
 -- interval.
 select gp_inject_fault_infinite('fts_probe', 'skip', 1);
- gp_inject_fault_infinite 
---------------------------
- Success:
-(1 row)
-
 select gp_request_fts_probe_scan();
- gp_request_fts_probe_scan 
----------------------------
- t
-(1 row)
-
 select gp_wait_until_triggered_fault('fts_probe', 1, 1);
- gp_wait_until_triggered_fault 
--------------------------------
- Success:
-(1 row)
 
 -- stop a mirror
 select pg_ctl((select datadir from gp_segment_configuration c where c.role='m' and c.content=0), 'stop', NULL);
-                pg_ctl                
---------------------------------------
- waiting for server to shut down done+
- server stopped                      +
- 
-(1 row)
 
 -- checkpoint and switch the xlog to avoid corrupting the xlog due to background processes
 checkpoint;
 -- substring() function is used to ignore the output, but not the error
 select substring(pg_switch_xlog()::text, 0, 0) from gp_dist_random('gp_id') where gp_segment_id = 0;
- substring 
------------
- 
-(1 row)
 
 -- generate wal sender error
 select gp_inject_fault_infinite('wal_sender_error', 'skip', dbid)
 from gp_segment_configuration
-where preferred_role='p' and content=0;
- gp_inject_fault_infinite 
---------------------------
- Success:
-(1 row)
+where role='p' and content=0;
 
 -- bring the mirror back up
 select pg_ctl((select datadir from gp_segment_configuration c where c.role='m' and c.content=0), 'start', (select port from gp_segment_configuration where content = 0 and preferred_role = 'm'));
-     pg_ctl      
------------------
- server starting+
- 
-(1 row)
 
 -- check the view, we expect to see error
 select wait_for_replication_error('walread', 0, 500);
- wait_for_replication_error 
-----------------------------
- t
-(1 row)
-
 select sync_error from gp_stat_replication where gp_segment_id = 0;
- sync_error 
-------------
- walread
-(1 row)
 
 -- reset wal sender error
 select gp_inject_fault('wal_sender_error', 'reset', dbid)
 from gp_segment_configuration
-where preferred_role='p' and content=0;
- gp_inject_fault 
------------------
- Success:
-(1 row)
+where role='p' and content=0;
 
 -- force the WAL segment to switch over from after previous pg_switch_xlog().
 create temp table dummy2 (id int4) distributed randomly;
+
 -- the error should go away
 select wait_for_replication_error('none', 0, 500);
- wait_for_replication_error 
-----------------------------
- t
-(1 row)
-
 select sync_error from gp_stat_replication where gp_segment_id = 0;
- sync_error 
-------------
- none
-(1 row)
 
 -- Resume FTS probes and perform a probe scan.
 select gp_inject_fault('fts_probe', 'reset', 1);
- gp_inject_fault 
------------------
- Success:
-(1 row)
-
 select gp_request_fts_probe_scan();
- gp_request_fts_probe_scan 
----------------------------
- t
-(1 row)
-
 -- Validate that the mirror for content=0 is marked up.
 select count(*) = 2 as mirror_up from gp_segment_configuration
  where content=0 and status='u';
- mirror_up 
------------
- t
-(1 row)
-
 -- make sure leave the test only after mirror is in sync to avoid
 -- affecting other tests. Thumb rule: leave cluster in same state as
 -- test started.
 select wait_for_mirror_sync(0::smallint);
- wait_for_mirror_sync 
-----------------------
- 
-(1 row)
-
 select role, preferred_role, content, mode, status from gp_segment_configuration;
- role | preferred_role | content | mode | status 
-------+----------------+---------+------+--------
- p    | p              |      -1 | n    | u
- p    | p              |       0 | s    | u
- m    | m              |       0 | s    | u
- p    | p              |       1 | s    | u
- m    | m              |       1 | s    | u
- p    | p              |       2 | s    | u
- m    | m              |       2 | s    | u
- m    | m              |      -1 | s    | u
-(8 rows)
-
