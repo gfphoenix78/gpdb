@@ -132,7 +132,7 @@ select gp_wait_until_triggered_fault('fts_probe', 1, 1);
 -- stop a mirror
 select pg_ctl((select datadir from gp_segment_configuration c where c.role='m' and c.content=0), 'stop', NULL);
 
--- checkpoint and switch the xlog to avoid corrupting the xlog due to background processes
+-- checkpoint and switch the xlog to make sure the WAL on primary is ahead of the mirror's
 checkpoint;
 -- substring() function is used to ignore the output, but not the error
 select substring(pg_switch_xlog()::text, 0, 0) from gp_dist_random('gp_id') where gp_segment_id = 0;
