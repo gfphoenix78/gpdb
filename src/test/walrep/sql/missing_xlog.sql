@@ -76,6 +76,7 @@ end;
 $$ language plpgsql;
 
 -- start_ignore
+-- let the mirror be marked as 'down' quickly
 \! gpconfig -c gp_fts_mark_mirror_down_grace_period -v 2
 \! gpstop -u
 -- end_ignore
