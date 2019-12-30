@@ -119,6 +119,13 @@ typedef struct
 	 */
 	bool		force_reply;
 
+	/*
+	 * force walreceiver to flush after writer new WAL records.
+	 * it is only set by the startup process when there is no more
+	 * valid WAL records to replay before Flush point.
+	 */
+	bool		force_flush;
+
 	/* set true once conninfo is ready to display (obfuscated pwds etc) */
 	bool		ready_to_display;
 

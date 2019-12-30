@@ -1005,6 +1005,10 @@ XLogWalRcvWrite(char *buf, Size nbytes, XLogRecPtr recptr)
 			   (uint32) (LogstreamResult.Write >> 32),
 			   (uint32) LogstreamResult.Write);
 	}
+	if (WalRcv->force_flush) {
+		WalRcv->force_flush = false;
+		XLogWalRcvFlush(false);
+	}
 }
 
 /*
