@@ -71,6 +71,7 @@
 
 
 /* GUC variables */
+int			wal_receiver_flush_threshold;
 int			wal_receiver_status_interval;
 int			wal_receiver_timeout;
 bool		hot_standby_feedback;
@@ -1005,6 +1006,11 @@ XLogWalRcvWrite(char *buf, Size nbytes, XLogRecPtr recptr)
 			   (uint32) (LogstreamResult.Write >> 32),
 			   (uint32) LogstreamResult.Write);
 	}
+	// false positive of request_flush doesn't change correctness
+	// is it necessary to hold the spinlock?
+	if (LogstreamResult.Write - LogstreamResult.Flush >= flush_threshold && ((volatile WalRcvData*)WalRcv)->request_flush) {
+		XLogWalRcvFlush(false);
+	}
 }
 
 /*
@@ -1038,6 +1044,7 @@ XLogWalRcvFlush(bool dying)
 			walrcv->receivedUpto = LogstreamResult.Flush;
 			walrcv->receivedTLI = ThisTimeLineID;
 		}
+		WalRcv->request_flush = false;
 		SpinLockRelease(&walrcv->mutex);
 
 		/* Signal the startup process and walsender that new WAL has arrived */
