@@ -1852,6 +1852,16 @@ static struct config_int ConfigureNamesInt[] =
 	},
 
 	{
+		{"wal_receiver_flush_threshold", PGC_SIGHUP, REPLICATION_STANDBY,
+			gettext_noop("Sets the maximum interval between WAL receiver status reports to the primary."),
+			NULL,
+		},
+		&wal_receiver_flush_threshold,
+		2*1024*1024, 1024, XLOG_SEG_SIZE,
+		NULL, NULL, NULL
+	},
+
+	{
 		{"wal_receiver_status_interval", PGC_SIGHUP, REPLICATION_STANDBY,
 			gettext_noop("Sets the maximum interval between WAL receiver status reports to the primary."),
 			NULL,

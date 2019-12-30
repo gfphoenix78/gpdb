@@ -71,6 +71,7 @@
 
 
 /* GUC variables */
+int			wal_receiver_flush_threshold;
 int			wal_receiver_status_interval;
 int			wal_receiver_timeout;
 bool		hot_standby_feedback;
@@ -1005,6 +1006,8 @@ XLogWalRcvWrite(char *buf, Size nbytes, XLogRecPtr recptr)
 			   (uint32) (LogstreamResult.Write >> 32),
 			   (uint32) LogstreamResult.Write);
 	}
+	if (LogstreamResult.Write - LogstreamResult.Flush >= flush_threshold)
+		XLogWalRcvFlush(false);
 }
 
 /*
