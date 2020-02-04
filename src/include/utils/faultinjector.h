@@ -105,9 +105,15 @@ extern bool am_faulthandler;
 #define IsFaultHandler am_faulthandler
 #define SIMPLE_FAULT_INJECTOR(FaultName) \
 	FaultInjector_InjectFaultIfSet(FaultName, DDLNotSpecified, "", "")
+#define SIMPLE_FAULT_INJECTOR_DATABASE(FaultName, DatabaseName) \
+	FaultInjector_InjectFaultIfSet(FaultName, DDLNotSpecified, DatabaseName, "")
+#define SIMPLE_FAULT_INJECTOR_TABLE(FaultName, TableName) \
+	FaultInjector_InjectFaultIfSet(FaultName, DDLNotSpecified, "", TableName)
 #else
 #define IsFaultHandler false
 #define SIMPLE_FAULT_INJECTOR(FaultName)
+#define SIMPLE_FAULT_INJECTOR_DATABASE(FaultName, DatabaseName)
+#define SIMPLE_FAULT_INJECTOR_TABLE(FaultName, TableName)
 #endif
 
 #endif	/* FAULTINJECTOR_H */

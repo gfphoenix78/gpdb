@@ -234,20 +234,12 @@ lazy_vacuum_rel(Relation onerel, int options, VacuumParams *params,
 	if (ao_vacuum_phase_config != NULL &&
 		ao_vacuum_phase_config->appendonly_phase == AOVAC_DROP)
 	{
-			FaultInjector_InjectFaultIfSet(
-				"compaction_before_segmentfile_drop",
-				DDLNotSpecified,
-				"",	// databaseName
-				RelationGetRelationName(onerel)); // tableName
+		SIMPLE_FAULT_INJECTOR_TABLE("compaction_before_segmentfile_drop", RelationGetRelationName(onerel));
 	}
 	if (ao_vacuum_phase_config != NULL &&
 		ao_vacuum_phase_config->appendonly_phase == AOVAC_CLEANUP)
 	{
-			FaultInjector_InjectFaultIfSet(
-				"compaction_before_cleanup_phase",
-				DDLNotSpecified,
-				"",	// databaseName
-				RelationGetRelationName(onerel)); // tableName
+		SIMPLE_FAULT_INJECTOR_TABLE("compaction_before_cleanup_phase", RelationGetRelationName(onerel));
 	}
 #endif
 

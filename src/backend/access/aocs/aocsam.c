@@ -895,13 +895,7 @@ aocs_insert_values(AOCSInsertDesc idesc, Datum *d, bool *null, AOTupleId *aoTupl
 				(errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
 				 errmsg("append-only column-oriented tables do not support rows with OIDs")));
 
-#ifdef FAULT_INJECTOR
-	FaultInjector_InjectFaultIfSet(
-								   "appendonly_insert",
-								   DDLNotSpecified,
-								   "",	/* databaseName */
-								   RelationGetRelationName(idesc->aoi_rel));	/* tableName */
-#endif
+	SIMPLE_FAULT_INJECTOR_TABLE("appendonly_insert", RelationGetRelationName(idesc->aoi_rel));
 
 	/* As usual, at this moment, we assume one col per vp */
 	for (i = 0; i < RelationGetNumberOfAttributes(rel); ++i)
@@ -1596,14 +1590,7 @@ aocs_update(AOCSUpdateDesc desc, TupleTableSlot *slot,
 	Assert(oldTupleId);
 	Assert(newTupleId);
 
-#ifdef FAULT_INJECTOR
-	FaultInjector_InjectFaultIfSet(
-								   "appendonly_update",
-								   DDLNotSpecified,
-								   "", //databaseName
-								   RelationGetRelationName(desc->insertDesc->aoi_rel));
-	/* tableName */
-#endif
+	SIMPLE_FAULT_INJECTOR_TABLE("appendonly_update", RelationGetRelationName(desc->insertDesc->aoi_rel));
 
 	result = AppendOnlyVisimapDelete_Hide(&desc->visiMapDelete, oldTupleId);
 	if (result != HeapTupleMayBeUpdated)
@@ -1697,13 +1684,7 @@ aocs_delete(AOCSDeleteDesc aoDeleteDesc,
 		   NameStr(aoDeleteDesc->aod_rel->rd_rel->relname),
 		   AOTupleIdToString(aoTupleId));
 
-#ifdef FAULT_INJECTOR
-	FaultInjector_InjectFaultIfSet(
-								   "appendonly_delete",
-								   DDLNotSpecified,
-								   "",	/* databaseName */
-								   RelationGetRelationName(aoDeleteDesc->aod_rel)); /* tableName */
-#endif
+	SIMPLE_FAULT_INJECTOR_TABLE("appendonly_delete", RelationGetRelationName(aoDeleteDesc->aod_rel));
 
 	return AppendOnlyVisimapDelete_Hide(&aoDeleteDesc->visiMapDelete, aoTupleId);
 }

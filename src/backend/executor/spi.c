@@ -2680,17 +2680,10 @@ _SPI_pquery(QueryDesc *queryDesc, bool fire_triggers, uint64 tcount)
 			/*
 			 * only check number tuples if the SPI 64 bit test is NOT running
 			 */
-			if (!FaultInjector_InjectFaultIfSet("executor_run_high_processed",
-										   DDLNotSpecified,
-										   "" /* databaseName */,
-										   "" /* tableName */))
-			{
+			if (!SIMPLE_FAULT_INJECTOR("executor_run_high_processed"))
 #endif /* FAULT_INJECTOR */
 				if (_SPI_checktuples())
 					elog(ERROR, "consistency check on SPI tuple count failed");
-#ifdef FAULT_INJECTOR
-			}
-#endif /* FAULT_INJECTOR */
 		}
 
 		gp_enable_gpperfmon = orig_gp_enable_gpperfmon;

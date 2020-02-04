@@ -1605,10 +1605,7 @@ RecordTransactionCommit(void)
 		if (isDtxPrepared == 0 &&
 			CurrentTransactionState->blockState == TBLOCK_END)
 		{
-			FaultInjector_InjectFaultIfSet("local_tm_record_transaction_commit",
-										   DDLNotSpecified,
-										   "",  // databaseName
-										   ""); // tableName
+			SIMPLE_FAULT_INJECTOR("local_tm_record_transaction_commit");
 		}
 #endif
 
@@ -1659,15 +1656,10 @@ RecordTransactionCommit(void)
 	}
 #endif
 
-#ifdef FAULT_INJECTOR
 	if (isDtxPrepared)
 	{
-		FaultInjector_InjectFaultIfSet("dtm_xlog_distributed_commit",
-									   DDLNotSpecified,
-									   "",  // databaseName
-									   ""); // tableName
+		SIMPLE_FAULT_INJECTOR("dtm_xlog_distributed_commit");
 	}
-#endif
 	
 	/*
 	 * If we entered a commit critical section, leave it now, and let
@@ -2717,13 +2709,9 @@ CommitTransaction(void)
 #ifdef FAULT_INJECTOR
 	if (isPreparedDtxTransaction())
 	{
-		FaultInjector_InjectFaultIfSet(
-									   "transaction_abort_after_distributed_prepared",
-									   DDLNotSpecified,
-									   "",	// databaseName
-									   ""); // tableName
+		SIMPLE_FAULT_INJECTOR("transaction_abort_after_distributed_prepare");
 	}
-#endif	
+#endif
 
 	if (Debug_abort_after_distributed_prepared &&
 		isPreparedDtxTransaction())
