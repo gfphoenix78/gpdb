@@ -1184,7 +1184,7 @@ setupUDPListeningSocket(int *listenerSocketFd, uint16 *listenerPort, int *txFami
 	memset(&hints, 0, sizeof(struct addrinfo));
 	hints.ai_family = AF_UNSPEC;	/* Allow IPv4 or IPv6 */
 	hints.ai_socktype = SOCK_DGRAM; /* Datagram socket */
-	hints.ai_flags = AI_PASSIVE;	/* For wildcard IP address */
+	hints.ai_flags = 0;	/* For wildcard IP address */
 	hints.ai_protocol = 0;		/* Any protocol */
 
 #ifdef USE_ASSERT_CHECKING
@@ -1193,7 +1193,7 @@ setupUDPListeningSocket(int *listenerSocketFd, uint16 *listenerPort, int *txFami
 #endif
 
 	fun = "getaddrinfo";
-	s = getaddrinfo(BackendListenAddress, service, &hints, &addrs);
+	s = getaddrinfo(interconnect_address, service, &hints, &addrs);
 	if (s != 0)
 		elog(ERROR, "getaddrinfo says %s", gai_strerror(s));
 

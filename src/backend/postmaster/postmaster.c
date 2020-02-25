@@ -636,7 +636,7 @@ int			postmaster_alive_fds[2] = {-1, -1};
 /* Process handle of postmaster used for the same purpose on Windows */
 HANDLE		PostmasterHandle;
 #endif
-
+char interconnect_address[64];
 /*
  * Postmaster main entry point
  */
@@ -729,7 +729,7 @@ PostmasterMain(int argc, char *argv[])
 	 * tcop/postgres.c (the option sets should not conflict) and with the
 	 * common help() function in main/main.c.
 	 */
-	while ((opt = getopt(argc, argv, "A:B:bc:C:D:d:EeFf:h:ijk:lMmN:nOo:Pp:r:S:sTt:W:-:")) != -1)
+	while ((opt = getopt(argc, argv, "A:B:bc:C:D:d:EeFf:h:I:ijk:lMmN:nOo:Pp:r:S:sTt:W:-:")) != -1)
 	{
 		switch (opt)
 		{
@@ -794,6 +794,10 @@ PostmasterMain(int argc, char *argv[])
 				SetConfigOption("listen_addresses", optarg, PGC_POSTMASTER, PGC_S_ARGV);
 				break;
 
+			case 'I':
+				strcpy(interconnect_address, optarg);
+				elog(NOTICE, "IC-address: %s", interconnect_address);
+				break;
 			case 'i':
 				SetConfigOption("listen_addresses", "*", PGC_POSTMASTER, PGC_S_ARGV);
 				break;
