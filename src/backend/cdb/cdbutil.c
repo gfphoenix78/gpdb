@@ -93,8 +93,8 @@ int numsegmentsFromQD = -1;
 
 typedef struct SegIpEntry
 {
-	char		key[NAMEDATALEN];
-	char		hostinfo[NI_MAXHOST];
+	char		key[NI_MAXHOST];
+	char		hostinfo[INET6_ADDRSTRLEN];
 } SegIpEntry;
 
 typedef struct HostSegsEntry
@@ -384,7 +384,7 @@ getCdbComponentInfo(void)
 
 		if (config->hostaddrs[0] != NULL)
 			config->hostip = pstrdup(config->hostaddrs[0]);
-		AssertImply(config->hostip, strlen(config->hostip) <= INET6_ADDRSTRLEN);
+		AssertImply(config->hostip, strlen(config->hostip) < INET6_ADDRSTRLEN);
 
 		/*
 		 * Determine which array to place this rows data in: entry or segment,
@@ -1134,7 +1134,7 @@ getDnsCachedAddress(char *name, int port, int elevel, bool use_cache)
 
 			MemSet(&hash_ctl, 0, sizeof(hash_ctl));
 
-			hash_ctl.keysize = NAMEDATALEN + 1;
+			hash_ctl.keysize = NI_MAXHOST;
 			hash_ctl.entrysize = sizeof(SegIpEntry);
 
 			segment_ip_cache_htab = hash_create("segment_dns_cache",
@@ -1153,100 +1153,43 @@ getDnsCachedAddress(char *name, int port, int elevel, bool use_cache)
 	 * The name is either not in our cache, or we've been instructed to not
 	 * use the cache. Perform the name lookup.
 	 */
-	if (!use_cache || (use_cache && e == NULL))
-	{
-		MemoryContext oldContext = NULL;
-		int			ret;
-		char		portNumberStr[32];
-		char	   *service;
-		struct addrinfo *addrs = NULL,
-				   *addr;
-		struct addrinfo hint;
+	MemoryContext oldContext = NULL;
+	int			ret;
+	char		service[32];
+	struct addrinfo *addrs = NULL,
+			   *addr;
+	struct addrinfo hint;
 
-		/* Initialize hint structure */
-		MemSet(&hint, 0, sizeof(hint));
-		hint.ai_socktype = SOCK_STREAM;
-		hint.ai_family = AF_UNSPEC;
+	/* Initialize hint structure */
+	MemSet(&hint, 0, sizeof(hint));
+	hint.ai_socktype = SOCK_STREAM;
+	hint.ai_family = AF_UNSPEC;
 
-		snprintf(portNumberStr, sizeof(portNumberStr), "%d", port);
-		service = portNumberStr;
+	snprintf(service, sizeof(service), "%d", port);
 
-		ret = pg_getaddrinfo_all(name, service, &hint, &addrs);
-		if (ret || !addrs)
-		{
-			if (addrs)
-				pg_freeaddrinfo_all(hint.ai_family, addrs);
+	ret = pg_getaddrinfo_all(name, service, &hint, &addrs);
+	if (ret != 0)
+		goto error_out;
 
-			/*
-			 * If a host name is unknown, whether it is an error depends on its role:
-			 * - if it is a primary then it's an error;
-			 * - if it is a mirror then it's just a warning;
-			 * but we do not know the role information here, so always treat it as a
-			 * warning, the callers should check the role and decide what to do.
-			 */
-			if (ret != EAI_FAIL && elevel == ERROR)
-				elevel = WARNING;
+	/* save in the cache context */
+	if (use_cache)
+		oldContext = MemoryContextSwitchTo(TopMemoryContext);
 
-			ereport(elevel,
-					(errmsg("could not translate host name \"%s\", port \"%d\" to address: %s",
-							name, port, gai_strerror(ret))));
-
-			return NULL;
-		}
-
-		/* save in the cache context */
-		if (use_cache)
-			oldContext = MemoryContextSwitchTo(TopMemoryContext);
-
-		hostinfo[0] = '\0';
-		for (addr = addrs; addr; addr = addr->ai_next)
-		{
-#ifdef HAVE_UNIX_SOCKETS
-			/* Ignore AF_UNIX sockets, if any are returned. */
-			if (addr->ai_family == AF_UNIX)
-				continue;
-#endif
-			if (addr->ai_family == AF_INET) /* IPv4 address */
-			{
-				memset(hostinfo, 0, sizeof(hostinfo));
-				pg_getnameinfo_all((struct sockaddr_storage *) addr->ai_addr, addr->ai_addrlen,
-								   hostinfo, sizeof(hostinfo),
-								   NULL, 0,
-								   NI_NUMERICHOST);
-
-				if (use_cache)
-				{
-					/* Insert into our cache htab */
-					e = (SegIpEntry *) hash_search(segment_ip_cache_htab,
-												   name, HASH_ENTER, NULL);
-					memcpy(e->hostinfo, hostinfo, sizeof(hostinfo));
-				}
-
-				break;
-			}
-		}
-
+	int ai_family = AF_INET;
 #ifdef HAVE_IPV6
-
-		/*
-		 * IPv6 probably would work fine, we'd just need to make sure all the
-		 * data structures are big enough for the IPv6 address.  And on some
-		 * broken systems, you can get an IPv6 address, but not be able to
-		 * bind to it because IPv6 is disabled or missing in the kernel, so
-		 * we'd only want to use the IPv6 address if there isn't an IPv4
-		 * address.  All we really need to do is test this.
-		 */
-		if (((!use_cache && !hostinfo[0]) || (use_cache && e == NULL))
-			&& addrs->ai_family == AF_INET6)
+retry_ipv6:
+#endif
+	for (addr = addrs; addr; addr = addr->ai_next)
+	{
+		if (addr->ai_family == ai_family) /* IPv4 or IPv6 address */
 		{
-			char		hostinfo[NI_MAXHOST];
-
-			addr = addrs;
-			/* Get a text representation of the IP address */
-			pg_getnameinfo_all((struct sockaddr_storage *) addr->ai_addr, addr->ai_addrlen,
+			memset(hostinfo, 0, sizeof(hostinfo));
+			ret = pg_getnameinfo_all((struct sockaddr_storage *) addr->ai_addr, addr->ai_addrlen,
 							   hostinfo, sizeof(hostinfo),
 							   NULL, 0,
 							   NI_NUMERICHOST);
+			if (ret != 0)
+				continue;
 
 			if (use_cache)
 			{
@@ -1255,20 +1198,48 @@ getDnsCachedAddress(char *name, int port, int elevel, bool use_cache)
 											   name, HASH_ENTER, NULL);
 				memcpy(e->hostinfo, hostinfo, sizeof(hostinfo));
 			}
+			break;
 		}
-#endif
-
-		if (use_cache)
-			MemoryContextSwitchTo(oldContext);
-
-		pg_freeaddrinfo_all(hint.ai_family, addrs);
 	}
 
-	/* return a pointer to our cache. */
-	if (use_cache)
-		return e->hostinfo;
+#ifdef HAVE_IPV6
 
-	return pstrdup(hostinfo);
+	/*
+	 * IPv6 probably would work fine, we'd just need to make sure all the
+	 * data structures are big enough for the IPv6 address.  And on some
+	 * broken systems, you can get an IPv6 address, but not be able to
+	 * bind to it because IPv6 is disabled or missing in the kernel, so
+	 * we'd only want to use the IPv6 address if there isn't an IPv4
+	 * address.  All we really need to do is test this.
+	 */
+	if (addr == NULL && ai_family == AF_INET)
+	{
+		ai_family = AF_INET6;
+		goto retry_ipv6;
+	}
+#endif
+	pg_freeaddrinfo_all(hint.ai_family, addrs);
+	if (use_cache)
+		MemoryContextSwitchTo(oldContext);
+	if (addr != NULL)
+		return use_cache ? e->hostinfo : pstrdup(hostinfo);
+
+error_out:
+	/*
+	 * If a host name is unknown, whether it is an error depends on its role:
+	 * - if it is a primary then it's an error;
+	 * - if it is a mirror then it's just a warning;
+	 * but we do not know the role information here, so always treat it as a
+	 * warning, the callers should check the role and decide what to do.
+	 */
+	if (ret != EAI_FAIL && elevel == ERROR)
+		elevel = WARNING;
+
+	ereport(elevel,
+			(errmsg("could not translate host name \"%s\", port \"%d\" to address: %s",
+					name, port, gai_strerror(ret))));
+
+	return NULL;
 }
 
 /*
