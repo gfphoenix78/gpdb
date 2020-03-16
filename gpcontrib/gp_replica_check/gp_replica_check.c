@@ -374,6 +374,9 @@ retry:
 		int			primaryFileBytesRead;
 		int			mirrorFileBytesRead;
 		int			diff;
+		bool		do_check;
+
+		do_check = true;
 
 		CHECK_FOR_INTERRUPTS();
 
@@ -438,6 +441,13 @@ retry:
 				goto retry;
 			}
 
+			/* */
+			if (PageIsEmpty(primaryFileBuf) && PageIsEmpty(mirrorFileBuf))
+			{
+				elog(NOTICE, "hit this issue at blkno %d", blockno);
+				do_check = false;
+			}
+
 			if (!PageIsNew(primaryFileBuf) && !PageIsNew(mirrorFileBuf))
 			{
 				mask_block(primaryFileBuf, blockno, rentry->relam, rentry->relkind);
@@ -445,7 +455,7 @@ retry:
 			}
 		}
 
-		if ((diff = memcmp(primaryFileBuf, mirrorFileBuf, primaryFileBytesRead)) != 0)
+		if (do_check && (diff = memcmp(primaryFileBuf, mirrorFileBuf, primaryFileBytesRead)) != 0)
 		{
 			/* different contents */
 			ereport(NOTICE,
