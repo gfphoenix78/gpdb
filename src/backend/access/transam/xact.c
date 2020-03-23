@@ -2707,7 +2707,7 @@ CommitTransaction(void)
 #ifdef FAULT_INJECTOR
 	if (isPreparedDtxTransaction())
 	{
-		SIMPLE_FAULT_INJECTOR("transaction_abort_after_distributed_prepare");
+		SIMPLE_FAULT_INJECTOR("transaction_abort_after_distributed_prepared");
 	}
 #endif
 

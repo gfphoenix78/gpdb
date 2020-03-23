@@ -68,13 +68,15 @@ clean distclean:
 install: all gpdiff.pl gpstringsubs.pl
 
 installcheck: install
-	./pg_isolation2_regress $(EXTRA_REGRESS_OPTS) --init-file=$(top_builddir)/src/test/regress/init_file --init-file=./init_file_isolation2 --bindir='$(bindir)' --inputdir=$(srcdir) --schedule=$(srcdir)/isolation2_schedule
 ifeq ($(enable_faultinjector),yes)
-	./pg_isolation2_regress $(EXTRA_REGRESS_OPTS) --init-file=$(top_builddir)/src/test/regress/init_file --init-file=./init_file_isolation2 --bindir='$(bindir)' --inputdir=$(srcdir) --schedule=$(srcdir)/isolation2_faultinjector_schedule
+	./pg_isolation2_regress $(EXTRA_REGRESS_OPTS) --init-file=$(top_builddir)/src/test/regress/init_file --init-file=./init_file_isolation2 --bindir='$(bindir)' --inputdir=$(srcdir) --schedule=$(srcdir)/isolation2_schedule --schedule=$(srcdir)/isolation2_faultinjector_schedule
+else
+	./pg_isolation2_regress $(EXTRA_REGRESS_OPTS) --init-file=$(top_builddir)/src/test/regress/init_file --init-file=./init_file_isolation2 --bindir='$(bindir)' --inputdir=$(srcdir) --schedule=$(srcdir)/isolation2_schedule
 endif
 
 installcheck-resgroup: install
-	./pg_isolation2_regress $(EXTRA_REGRESS_OPTS) --init-file=$(top_builddir)/src/test/regress/init_file --init-file=./init_file_resgroup --bindir='$(bindir)' --inputdir=$(srcdir) --dbname=isolation2resgrouptest  --schedule=$(srcdir)/isolation2_resgroup_schedule
 ifeq ($(enable_faultinjector),yes)
-	./pg_isolation2_regress $(EXTRA_REGRESS_OPTS) --init-file=$(top_builddir)/src/test/regress/init_file --init-file=./init_file_resgroup --bindir='$(bindir)' --inputdir=$(srcdir) --dbname=isolation2resgrouptest  --schedule=$(srcdir)/isolation2_resgroup_faultinjector_schedule
+	./pg_isolation2_regress $(EXTRA_REGRESS_OPTS) --init-file=$(top_builddir)/src/test/regress/init_file --init-file=./init_file_resgroup --bindir='$(bindir)' --inputdir=$(srcdir) --dbname=isolation2resgrouptest  --schedule=$(srcdir)/isolation2_resgroup_schedule --schedule=$(srcdir)/isolation2_resgroup_faultinjector_schedule
+else
+	./pg_isolation2_regress $(EXTRA_REGRESS_OPTS) --init-file=$(top_builddir)/src/test/regress/init_file --init-file=./init_file_resgroup --bindir='$(bindir)' --inputdir=$(srcdir) --dbname=isolation2resgrouptest  --schedule=$(srcdir)/isolation2_resgroup_schedule
 endif

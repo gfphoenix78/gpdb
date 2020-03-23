@@ -35,3 +35,4 @@ SELECT gp_workfile_mgr_test('fd_tests');
  t
 (4 rows)
 
+\! rmdir '@testtablespace@/workfile_mgr';

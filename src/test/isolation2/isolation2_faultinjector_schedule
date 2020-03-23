@@ -16,7 +16,6 @@ test: packcore
 
 # Tests on global deadlock detector
 test: gdd/avoid-qd-deadlock
-test: gdd/planner_insert_while_vacuum_drop
 
 # Test concurrent UPDATE
 test: concurrent_update
@@ -38,10 +37,8 @@ test: fsync_ao
 test: concurrent_index_creation_should_not_deadlock
 # Tests on Append-Optimized tables
 test: uao/vacuum_cleanup_row
-test: uao/insert_should_not_use_awaiting_drop_row
 test: segwalrep/master_xlog_switch
 test: uao/vacuum_cleanup_column
-test: uao/insert_should_not_use_awaiting_drop_column
 test: segwalrep/die_commit_pending_replication
 
 # Tests for FTS
