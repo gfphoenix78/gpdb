@@ -25,4 +25,4 @@ SELECT gp_workfile_mgr_test('workfile_made_in_temp_tablespace');
 DROP TABLESPACE ts1;
 
 SELECT gp_workfile_mgr_test('fd_tests');
-\! rmdir '@testtablespace@/workfile_mgr';
+\! rm -rf '@testtablespace@/workfile_mgr';
