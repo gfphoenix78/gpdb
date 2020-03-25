@@ -14,6 +14,7 @@
 #   to the segments, and therefore has to run in smaller groups to avoid
 #   hitting max_connections limit on segments.
 #
+test: check_environment
 
 # gp_toolkit performs a vacuum and checks that it truncated the relation. That
 # might not happen if other backends are holding transactions open, preventing
@@ -214,4 +215,5 @@ test: gangsize gang_reuse
 # some utilities do not work while doing gpexpand, check them can print correct message
 test: run_utility_gpexpand_phase1
 
+test: check_environment
 # end of tests
