@@ -6,7 +6,7 @@ top_builddir = ../../..
 
 include $(top_builddir)/src/Makefile.global
 
-REGRESS = setup
+REGRESS = setup check_environment
 REGRESS += replication_views_mirrored walreceiver generate_ao_xlog generate_aoco_xlog
 
 ifeq ($(enable_faultinjector),yes)
