@@ -83,6 +83,7 @@ char	   *tablespacedir = ".";
 char	   *prehook = "";
 char	   *bindir = PGBINDIR;
 char	   *launcher = NULL;
+char	   *check_cluster_test = NULL;
 bool        print_failure_diffs_is_enabled = false;
 bool 		optimizer_enabled = false;
 bool 		resgroup_enabled = false;
@@ -1990,6 +1991,29 @@ log_child_failure(int exitstatus)
 			   exitstatus);
 }
 
+static void
+check_cluster_status(const char *testname, test_function tfunc)
+{
+	if (testname != NULL)
+		return;
+	PID_TYPE pids;
+	int statuses;
+	_stringlist *resultfiles = NULL;
+	_stringlist *expectfiles = NULL;
+	_stringlist *tags = NULL;
+
+	pids = tfunc(testname, &resultfiles, &expectfiles, &tags);
+	wait_for_tests(&pids, &statuses, NULL, NULL, 1);
+
+	bool diff = results_differ(testname, resultfiles->str, expectfiles->str);
+	if (!diff)
+		return;
+
+	/* report error */
+	fprintf(stderr, "found cluster corruption\n");
+	status_end();
+}
+
 /*
  * Run all the tests specified in one schedule file
  */
@@ -2238,6 +2262,7 @@ run_schedule(const char *schedule, test_function tfunc)
 
 			status_end();
 		}
+		check_cluster_status(check_cluster_test, tfunc);
 	}
 
 	free_stringlist(&ignorelist);
@@ -2637,6 +2662,7 @@ regression_main(int argc, char *argv[], init_function ifunc, test_function tfunc
 		{"prehook", required_argument, NULL, 28},
 		{"print-failure-diffs", no_argument, NULL, 29},
 		{"tablespace-dir", required_argument, NULL, 80},
+		{"check-cluster-test", required_argument, NULL, 81},
 		{NULL, 0, NULL, 0}
 	};
 
@@ -2767,6 +2793,9 @@ regression_main(int argc, char *argv[], init_function ifunc, test_function tfunc
 				break;
 			case 80:
 				tablespacedir = strdup(optarg);
+				break;
+			case 81:
+				check_cluster_test = strdup(optarg);
 				break;
 			default:
 				/* getopt_long already emitted a complaint */
