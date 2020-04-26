@@ -2505,6 +2505,7 @@ create_motion_plan(PlannerInfo *root, CdbMotionPath *path)
 	int			before_numMotions;
 	PlanSlice  *save_curSlice = root->curSlice;
 	PlanSlice  *sendSlice;
+	int         motion_path_numsegments = ((Path*)path)->locus.numsegments;
 
 	/*
 	 * singleQE-->entry:  Elide the motion.  The subplan will run in the same
@@ -2636,6 +2637,7 @@ create_motion_plan(PlannerInfo *root, CdbMotionPath *path)
 	/* Add motion operator. */
 	motion = cdbpathtoplan_create_motion_plan(root, path, subplan);
 	motion->senderSliceInfo = sendSlice;
+	motion->recv_numsegments = motion_path_numsegments;
 
 	if (subpath->locus.locustype == CdbLocusType_Replicated)
 		motion->motionType = MOTIONTYPE_GATHER_SINGLE;
