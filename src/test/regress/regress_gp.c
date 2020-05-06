@@ -1193,7 +1193,7 @@ Datum
 hasBackendsExist(PG_FUNCTION_ARGS)
 {
 	int beid;
-	int32 result;
+	int32 result = 0;
 	int timeout = PG_GETARG_INT32(0);
 
 	if (timeout < 0)

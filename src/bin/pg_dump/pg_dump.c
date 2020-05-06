@@ -16168,7 +16168,7 @@ dumpTableSchema(Archive *fout, TableInfo *tbinfo)
 	int			actual_atts;	/* number of attrs in this CREATE statement */
 	const char *reltypename;
 	char	   *storage;
-	char	   *srvname;
+	char	   *srvname = NULL;
 	char	   *ftoptions = NULL;
 	int			j,
 				k;
