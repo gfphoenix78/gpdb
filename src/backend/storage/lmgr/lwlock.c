@@ -1814,7 +1814,7 @@ LWLockUpdateVar(LWLock *lock, uint64 *valptr, uint64 val)
 void
 LWLockRelease(LWLock *lock)
 {
-	LWLockMode	mode;
+	LWLockMode	mode = 0;
 	uint32		oldstate;
 	bool		check_waiters;
 	int			i;

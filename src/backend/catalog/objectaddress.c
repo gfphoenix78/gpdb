@@ -2340,7 +2340,7 @@ get_object_namespace(const ObjectAddress *address)
 int
 read_objtype_from_string(const char *objtype)
 {
-	ObjectType	type;
+	ObjectType	type = 0;
 	int			i;
 
 	for (i = 0; i < lengthof(ObjectTypeMap); i++)

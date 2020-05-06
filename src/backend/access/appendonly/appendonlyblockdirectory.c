@@ -1092,7 +1092,7 @@ find_minipage_entry(Minipage *minipage,
 {
 	int			start_no,
 				end_no;
-	int			entry_no;
+	int			entry_no = -1;
 	MinipageEntry *entry;
 
 	start_no = 0;
