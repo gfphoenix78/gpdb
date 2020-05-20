@@ -391,6 +391,7 @@ GetAllAOCSFileSegInfo_pg_aocsseg_rel(int numOfColumns,
 			Assert(VARSIZE(dv) <= aocs_vpinfo_size(nvp));
 
 			memcpy(&aocs_seginfo->vpinfo, dv, VARSIZE(dv));
+			aocs_seginfo->vpinfo.nEntry = nvp;
 			if (dv != v)
 				pfree(dv);
 		}
