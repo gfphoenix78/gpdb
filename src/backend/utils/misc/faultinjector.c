@@ -232,6 +232,14 @@ FaultInjector_ShmemInit(void)
 	return;						  
 }
 
+int
+FaultInjectorSize()
+{
+	if (!faultInjectorShmem || !faultInjectorShmem->hash)
+		return 0;
+	return (int)hash_get_num_entries(faultInjectorShmem->hash);
+}
+
 FaultInjectorType_e
 FaultInjector_InjectFaultIfSet(
 							   const char*				 faultName,

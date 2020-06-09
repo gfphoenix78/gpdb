@@ -85,6 +85,8 @@ extern Size FaultInjector_ShmemSize(void);
 
 extern void FaultInjector_ShmemInit(void);
 
+extern int FaultInjectorSize(void);
+
 extern FaultInjectorType_e FaultInjector_InjectFaultIfSet(
 							   const char*				 faultName,
 							   DDLStatement_e			 ddlStatement,
@@ -106,6 +108,7 @@ extern bool am_faulthandler;
 #define SIMPLE_FAULT_INJECTOR(FaultName) \
 	FaultInjector_InjectFaultIfSet(FaultName, DDLNotSpecified, "", "")
 #else
+#define FaultInjectorSize()	0
 #define IsFaultHandler false
 #define SIMPLE_FAULT_INJECTOR(FaultName)
 #endif

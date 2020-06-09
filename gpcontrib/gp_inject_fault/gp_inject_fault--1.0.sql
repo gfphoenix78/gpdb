@@ -3,6 +3,11 @@
 -- complain if script is sourced in psql, rather than via CREATE EXTENSION
 \echo Use "CREATE EXTENSION gp_fault_inject" to load this file. \quit
 
+CREATE FUNCTION gp_inject_fault_size() RETURNS int
+EXECUTE ON ALL SEGMENTS
+AS 'MODULE_PATHNAME'
+LANGUAGE C VOLATILE STRICT NO SQL;
+
 CREATE FUNCTION gp_inject_fault(
   faultname text,
   type text,

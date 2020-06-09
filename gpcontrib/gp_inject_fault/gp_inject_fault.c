@@ -84,6 +84,14 @@ getHostnameAndPort(int dbid, char **hostname, int *port)
 	heap_close(configrel, NoLock);
 }
 
+PG_FUNCTION_INFO_V1(gp_inject_fault_size);
+Datum
+gp_inject_fault_size(PG_FUNCTION_ARGS)
+{
+	int size = FaultInjectorSize();
+	PG_RETURN_INT32(size);
+}
+
 PG_FUNCTION_INFO_V1(gp_inject_fault);
 Datum
 gp_inject_fault(PG_FUNCTION_ARGS)
