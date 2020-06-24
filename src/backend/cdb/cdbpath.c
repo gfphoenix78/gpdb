@@ -2229,6 +2229,36 @@ create_motion_path_for_ctas(PlannerInfo *root, GpPolicy *policy, Path *subpath)
 		return create_motion_path_for_insert(root, policy, subpath);
 }
 
+static bool path_contain_mutable_functions_recursive(Path *path);
+static bool
+path_contain_mutable_functions_recursive(Path *path)
+{
+	if (!path)
+		return false;
+	if (contain_mutable_functions((Node*)path->pathtarget->exprs))
+		return true;
+
+#define PATH_CASE(TP) \
+	case T_##TP: \
+		return path_contain_mutable_functions_recursive(((TP*)path)->subpath)
+	switch (nodeTag(path))
+	{
+		PATH_CASE(CdbMotionPath);
+		PATH_CASE(SubqueryScanPath);
+		PATH_CASE(TableFunctionScanPath);
+		PATH_CASE(ProjectionPath);
+		PATH_CASE(SortPath);
+		PATH_CASE(GroupPath);
+		PATH_CASE(AggPath);
+		PATH_CASE(LimitPath);
+
+		default:
+			break;
+	}
+#undef PATH_CASE
+	return false;
+}
+
 /*
  * Add a suitable Motion Path so that the input tuples from 'subpath' are
  * distributed correctly for insertion into target table.
@@ -2300,7 +2330,7 @@ create_motion_path_for_insert(PlannerInfo *root, GpPolicy *policy,
 	{
 		/* try to optimize insert with no motion introduced into */
 		if (optimizer_replicated_table_insert &&
-			!contain_volatile_functions((Node *)subpath->pathtarget->exprs))
+			!path_contain_mutable_functions_recursive(subpath))
 		{
 			/*
 			 * CdbLocusType_SegmentGeneral is only used by replicated table
