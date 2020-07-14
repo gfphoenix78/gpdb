@@ -209,6 +209,10 @@ groups:
   - gpexpand
   - pg_upgrade
 {% endif %}
+{% if "oracle7" in os_types %}
+  - icw_gporca_oracle7
+  - icw_planner_oracle7
+{% endif %}
 {% if "ubuntu18.04" in os_types %}
   - icw_gporca_ubuntu18.04
   - icw_planner_ubuntu18.04
@@ -296,6 +300,10 @@ groups:
 {% endif %}
 {% if "centos7" in os_types and "CLI" in test_sections %}
   - pg_upgrade
+{% endif %}
+{% if "oracle7" in os_types %}
+  - icw_gporca_oracle7
+  - icw_planner_oracle7
 {% endif %}
 {% if "ubuntu18.04" in os_types %}
   - icw_gporca_ubuntu18.04
@@ -501,6 +509,14 @@ resources:
   source:
     repository: pivotaldata/gpdb7-centos7-test
     tag: latest
+
+{% endif %}
+{% if "oracle7" in os_types %}
+- name: gpdb7-oel7-test
+  type: docker-image
+  source:
+    repository: pivotaldata/gpdb7-oel7-test
+    tag: dev
 
 {% endif %}
 
@@ -954,6 +970,46 @@ jobs:
     params:
       MAKE_TEST_COMMAND: -k PGOPTIONS='-c gp_interconnect_type=tcp -c optimizer=on' installcheck-world
       TEST_OS: centos
+
+{% endif %}
+{% if "oracle7" in os_types %}
+- name: icw_gporca_oracle7
+  plan:
+  - in_parallel:
+      steps:
+      - get: gpdb_src
+        passed: [compile_gpdb_centos7]
+      - get: bin_gpdb
+        resource: bin_gpdb_centos7
+        passed: [compile_gpdb_centos7]
+        trigger: [[ test_trigger ]]
+      - get: gpdb7-oel7-test
+  - task: ic_gpdb
+    file: gpdb_src/concourse/tasks/ic_gpdb.yml
+    image: gpdb7-oel7-test
+    params:
+      MAKE_TEST_COMMAND: -k PGOPTIONS='-c optimizer=on' installcheck-world
+      TEST_OS: centos
+      CONFIGURE_FLAGS: {{configure_flags}}
+
+- name: icw_planner_oracle7
+  plan:
+  - in_parallel:
+      steps:
+      - get: gpdb_src
+        passed: [compile_gpdb_centos7]
+      - get: bin_gpdb
+        passed: [compile_gpdb_centos7]
+        resource: bin_gpdb_centos7
+        trigger: [[ test_trigger ]]
+      - get: gpdb7-oel7-test
+  - task: ic_gpdb
+    file: gpdb_src/concourse/tasks/ic_gpdb.yml
+    image: gpdb7-oel7-test
+    params:
+      MAKE_TEST_COMMAND: -k PGOPTIONS='-c optimizer=off' installcheck-world
+      TEST_OS: centos
+      CONFIGURE_FLAGS: {{configure_flags}}
 
 {% endif %}
 {% if "ubuntu18.04" in os_types %}
@@ -1719,6 +1775,8 @@ jobs:
         - icw_gporca_ictcp_centos7
         - icw_extensions_gpcloud_centos7
         - resource_group_centos7
+        - icw_gporca_oracle7
+        - icw_planner_oracle7
         - icw_gporca_ubuntu18.04
         - icw_planner_ubuntu18.04
         - test_gpdb_clients_windows
@@ -1745,6 +1803,8 @@ jobs:
         - icw_gporca_ictcp_centos7
         - icw_extensions_gpcloud_centos7
         - resource_group_centos7
+        - icw_gporca_oracle7
+        - icw_planner_oracle7
         - cli_cross_subnet
 {% for test in CLI_BEHAVE_TESTS %}
         - [[ test.name ]]
