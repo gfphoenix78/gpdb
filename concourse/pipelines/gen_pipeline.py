@@ -381,10 +381,6 @@ def main():
             'Extensions',
             'Gpperfmon'
         ]
-    # currently, ICW tests for oracle7 consumes the artifact produced by centos7
-    if 'oracle7' in args.os_types and not 'centos7' in args.os_types:
-        print("oracle7 depends on centos7")
-        args.os_types.append('centos7')
 
     # if generating a dev pipeline but didn't specify an output,
     # don't overwrite the 6X_STABLE pipeline

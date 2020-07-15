@@ -300,6 +300,9 @@ groups:
 {% if "centos7" in os_types %}
   - compile_gpdb_centos7
 {% endif %}
+{% if "oracle7" in os_types %}
+  - compile_gpdb_oracle7
+{% endif %}
 {% if "ubuntu18.04" in os_types %}
   - compile_gpdb_ubuntu18.04
 {% endif %}
@@ -2291,6 +2294,7 @@ jobs:
         passed:
         - compile_gpdb_centos6
         - compile_gpdb_centos7
+        - compile_gpdb_oracle7
         - compile_gpdb_ubuntu18.04
         - icw_planner_centos6
         - icw_gporca_centos6
@@ -2346,8 +2350,6 @@ jobs:
         - compile_gpdb_centos7
         - icw_gporca_centos7
         - icw_planner_centos7
-        - icw_gporca_oracle7
-        - icw_planner_oracle7
         - resource_group_centos7
         - MADlib_Test_orca_centos7
         - MADlib_Test_planner_centos7
@@ -2357,6 +2359,15 @@ jobs:
       - get: bin_gpdb_clients_centos7
         passed:
         - compile_gpdb_centos7
+      - get: bin_gpdb_oracle7
+        trigger: true
+        passed:
+        - compile_gpdb_oracle7
+        - icw_gporca_oracle7
+        - icw_planner_oracle7
+      - get: bin_gpdb_clients_oracle7
+        passed:
+        - compile_gpdb_oracle7
       - get: bin_gpdb_ubuntu18.04
         trigger: true
         passed:
@@ -2417,6 +2428,9 @@ jobs:
       - get: bin_gpdb_centos7
         trigger: true
         passed: [gate_release_candidate_start]
+      - get: bin_gpdb_oracle7
+        trigger: true
+        passed: [gate_release_candidate_start]
       - get: bin_gpdb_ubuntu18.04
         trigger: true
         passed: [gate_release_candidate_start]
@@ -2424,6 +2438,9 @@ jobs:
         trigger: true
         passed: [gate_release_candidate_start]
       - get: bin_gpdb_clients_centos7
+        trigger: true
+        passed: [gate_release_candidate_start]
+      - get: bin_gpdb_clients_oracle7
         trigger: true
         passed: [gate_release_candidate_start]
       - get: bin_gpdb_clients_ubuntu18.04
