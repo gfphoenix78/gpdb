@@ -18,20 +18,11 @@ function expand_glob_ensure_exists() {
 
 function prep_env() {
   case "${TARGET_OS}" in
-  centos)
+  centos|oracle)
     case "${TARGET_OS_VERSION}" in
     6 | 7) BLD_ARCH=rhel${TARGET_OS_VERSION}_x86_64 ;;
     *)
       echo "TARGET_OS_VERSION not set or recognized for Centos/RHEL"
-      exit 1
-      ;;
-    esac
-    ;;
-  oracle)
-    case "${TARGET_OS_VERSION}" in
-    7) BLD_ARCH=oel${TARGET_OS_VERSION}.x86_64 ;;
-    *)
-      echo "TARGET_OS_VERSION not set or recognized for Oracle Linux"
       exit 1
       ;;
     esac
