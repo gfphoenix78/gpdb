@@ -53,10 +53,10 @@ function _main() {
     fi
 
     case "${TEST_OS}" in
-    centos|ubuntu|sles) ;; #Valid
+    centos|oracle|ubuntu|sles) ;; #Valid
     *)
       echo "FATAL: TEST_OS is set to an invalid value: $TEST_OS"
-      echo "Configure TEST_OS to be centos, or ubuntu"
+      echo "Configure TEST_OS to be centos, oracle or ubuntu"
       exit 1
       ;;
     esac

@@ -69,7 +69,7 @@ create_gpadmin_if_not_existing() {
 setup_gpadmin_user() {
   groupadd supergroup
   case "$TEST_OS" in
-    centos)
+    centos|oracle)
       user_add_cmd="/usr/sbin/useradd -G supergroup,tty gpadmin"
       create_gpadmin_if_not_existing ${user_add_cmd}
       ;;
