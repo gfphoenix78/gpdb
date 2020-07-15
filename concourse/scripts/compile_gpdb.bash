@@ -27,6 +27,15 @@ function prep_env() {
       ;;
     esac
     ;;
+  oracle)
+    case "${TARGET_OS_VERSION}" in
+    7) BLD_ARCH=oel${TARGET_OS_VERSION}.x86_64 ;;
+    *)
+      echo "TARGET_OS_VERSION not set or recognized for Oracle Linux"
+      exit 1
+      ;;
+    esac
+    ;;
   ubuntu)
     case "${TARGET_OS_VERSION}" in
     18.04) BLD_ARCH=ubuntu18.04_x86_64 ;;
@@ -59,7 +68,7 @@ function install_deps_for_ubuntu() {
 
 function install_deps() {
   case "${TARGET_OS}" in
-    centos | sles) install_deps_for_centos_or_sles;;
+    centos | oracle | sles) install_deps_for_centos_or_sles;;
     ubuntu) install_deps_for_ubuntu;;
   esac
 }
@@ -117,7 +126,7 @@ function unittest_check_gpdb() {
 function include_zstd() {
   local libdir
   case "${TARGET_OS}" in
-    centos | sles) libdir=/usr/lib64 ;;
+    centos | oracle | sles) libdir=/usr/lib64 ;;
     ubuntu) libdir=/usr/lib ;;
     *) return ;;
   esac
@@ -131,7 +140,7 @@ function include_zstd() {
 function include_quicklz() {
   local libdir
   case "${TARGET_OS}" in
-    centos | sles) libdir=/usr/lib64 ;;
+    centos | oracle | sles) libdir=/usr/lib64 ;;
     ubuntu) libdir=/usr/local/lib ;;
     *) return ;;
   esac
@@ -212,7 +221,7 @@ function _main() {
   mkdir gpdb_src/gpAux/ext
 
   case "${TARGET_OS}" in
-    centos|ubuntu|sles)
+    centos|oracle|ubuntu|sles)
       prep_env
       build_xerces
       test_orca
