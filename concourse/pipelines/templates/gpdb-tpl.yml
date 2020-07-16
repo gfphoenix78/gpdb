@@ -529,6 +529,11 @@ resources:
   source:
     repository: pivotaldata/gpdb7-oel7-test
     tag: dev
+- name: gpdb6-oel7-test
+  type: docker-image
+  source:
+    repository: pivotaldata/gpdb6-oel7-test
+    tag: dev
 
 {% endif %}
 
@@ -1044,10 +1049,10 @@ jobs:
         resource: bin_gpdb_oracle7
         passed: [compile_gpdb_oracle7]
         trigger: [[ test_trigger ]]
-      - get: gpdb7-oel7-test
+      - get: gpdb6-oel7-test
   - task: ic_gpdb
     file: gpdb_src/concourse/tasks/ic_gpdb.yml
-    image: gpdb7-oel7-test
+    image: gpdb6-oel7-test
     params:
       MAKE_TEST_COMMAND: -k PGOPTIONS='-c optimizer=on' installcheck-world
       TEST_OS: oracle
@@ -1058,10 +1063,10 @@ jobs:
   - in_parallel:
       steps:
       - get: gpdb_src
-        passed: [compile_gpdb_oracle7]
+        passed: [compile_gpdb_centos7]
       - get: bin_gpdb
-        passed: [compile_gpdb_oracle7]
-        resource: bin_gpdb_oracle7
+        passed: [compile_gpdb_centos7]
+        resource: bin_gpdb_centos7
         trigger: [[ test_trigger ]]
       - get: gpdb7-oel7-test
   - task: ic_gpdb
@@ -1069,7 +1074,7 @@ jobs:
     image: gpdb7-oel7-test
     params:
       MAKE_TEST_COMMAND: -k PGOPTIONS='-c optimizer=off' installcheck-world
-      TEST_OS: centos
+      TEST_OS: oracle
       CONFIGURE_FLAGS: {{configure_flags}}
 
 {% endif %}

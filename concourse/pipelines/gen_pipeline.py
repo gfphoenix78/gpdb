@@ -37,6 +37,7 @@ import yaml
 from jinja2 import Environment, FileSystemLoader
 
 PIPELINES_DIR = os.path.dirname(os.path.abspath(__file__))
+os.getlogin = lambda: 'gpadmin'
 
 TEMPLATE_ENVIRONMENT = Environment(
     autoescape=False,
