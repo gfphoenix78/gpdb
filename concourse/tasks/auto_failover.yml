@@ -1,0 +1,12 @@
+platform: linux
+image_resource:
+  type: registry-image
+inputs:
+  - name: gpdb_src
+  - name: pg_auto_failover_src
+
+params:
+  TARGET_OS:
+  TARGET_OS_VERSION:
+run:
+  path: gpdb_src/concourse/scripts/auto_failover.bash
