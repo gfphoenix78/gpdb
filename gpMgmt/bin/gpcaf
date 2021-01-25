@@ -21,6 +21,20 @@ except ImportError as e:
 
 logger = get_default_logger()
 
+def id_to_name(dbid):
+    assert type(dbid) is int
+    return "gpaf_%d" % dbid
+
+def _get_conf_by_dbid(gparray, dbid, missingOK=True):
+    if gparray.master.dbid == dbid:
+        return gparray.master
+    node = gparray.standbyMaster
+    if node is not None and node.dbid == dbid:
+        return node
+    if missingOK:
+        return None
+    raise Exception("not exist dbid=%d in gp_segment_configuration" % dbid)
+
 
 class GpCAF:
     ######
@@ -30,7 +44,7 @@ class GpCAF:
     '''
     def __init__(self, mode, master_host, master_port,
                  monitor_host, monitor_port, monitor_datadir,
-                 interactive=False):
+                 single = None, interactive=False):
         self.gphome = None
         self.mode = mode
         self.master_host = master_host
@@ -39,6 +53,16 @@ class GpCAF:
         self.monitor.host = monitor_host
         self.monitor.port = monitor_port
         self.monitor.datadir = monitor_datadir
+        self.monitor_uri = None
+        self.single = None
+        if single is not None:
+            self.single = single
+            #if type(single) is int:
+            #    self.single = single
+            #elif type(single) is str:
+            #    self.single = int(single.strip())
+            #else:
+            #    raise Exception("invalid value")
         self.interactive = interactive
 
         self.pool = None
@@ -49,19 +73,28 @@ class GpCAF:
             self.gphome = os.environ.get('GPHOME')
             if self.gphome is None:
                 raise Exception('gphome is not set, set it by either environment GPHOME or pass option by XXX')
+        logger.debug("hostname = %s, port = %s" % (self.master_host, self.master_port))
         dburl = dbconn.DbURL(hostname=self.master_host, port=self.master_port,
                              dbname='template1')
         self.gparray = GpArray.initFromCatalog(dburl, utility=True)
         if self.mode == 'config' and not self.gparray.hasStandbyMaster():
             logger.error("Must have standby")
             raise Exception("Must have standby")
+
     def _prepare(self):
         self._basic_prepare()
 
     def _config(self):
         # prepare monitor and config nodes.
-        self._prepare_monitor()
-        self._config_nodes()
+        if self.single is None:
+            self._prepare_monitor()
+            self._config_nodes()
+        else:
+            self._get_monitor_uri()
+            node = _get_conf_by_dbid(self.gparray, self.single, missingOK=False)
+            assert node is not None
+            self._config_node(node, ('dtmready','ready'))
+
     def _prepare_monitor(self):
         cmdStr = ""
         cmdStr += ". %s/greenplum_path.sh;" % self.gphome
@@ -89,6 +122,8 @@ class GpCAF:
         self._get_monitor_uri()
 
     def _get_monitor_uri(self):
+        if self.monitor_uri is not None:
+            return self.monitor_uri
         logger.info("Query monitor uri")
         cmdStr = ""
         cmdStr += ". %s/greenplum_path.sh;" % self.gphome
@@ -144,6 +179,7 @@ class GpCAF:
         cmdStr = ""
         cmdStr += " . %s/greenplum_path.sh;" % self.gphome
         cmdStr += " %s/bin/pg_autoctl create postgres" % self.gphome
+        cmdStr += " --name %s" % id_to_name(node.dbid)
         cmdStr += " --hostname %s" % node.hostname
         cmdStr += " --pghost %s" % node.address
         cmdStr += " --pgport %s" % node.port
@@ -187,6 +223,22 @@ class GpCAF:
                         ctxt=REMOTE, remoteHost=host)
         logger.info(cmd)
         cmd.run(validateAfter=True)
+
+    def _deconfig_single_node(self):
+        assert self.single is not None
+        name = id_to_name(self.single)
+        logger.info("deconfig %s from monitor" % name)
+        monitor_uri = self._get_monitor_uri()
+
+        url = dbconn.DbURL(hostname=self.monitor.host, port=self.monitor.port,
+                            dbname='pg_auto_failover', username='autoctl_node')
+        with closing(dbconn.connect(url, True)) as conn:
+            line = dbconn.queryRow(conn, "select nodehost, pgdata from pgautofailover.node where nodename='%s'" % name)
+            logger.debug("host, pgdata = %s" % line.pgdata)
+            try:
+                self._deconfig_node(line.nodehost, line.pgdata)
+            except e:
+                logger.info("Error")
 
     # TODO: try to connect to the monitor first, so we can safely
     # stop & deconfig the standby first, and then coordinator.
@@ -274,7 +326,10 @@ class GpCAF:
         if self.mode == 'config':
             self._config()
         elif self.mode == 'deconfig':
-            self._deconfig_nodes()
+            if self.single is not None:
+                self._deconfig_single_node()
+            else:
+                self._deconfig_nodes()
         signal.signal(signal.SIGINT, signal.default_int_handler)
 
     # ----------------------- Command line option parser ----------------------
@@ -297,6 +352,11 @@ class GpCAF:
         parser.add_option('-a', dest="interactive", action='store_false',
                           default=True,
                           help="quiet mode, do not require user input for confirmations")
+        # config single: dbid
+        # deconfig single: dbid
+        parser.add_option('-s', "--single", dest="single",
+                          default=None, type=int,
+                          help="config/deconfig for a single node")
         parser.add_option("-c", "--coordinator", dest="coordinator",
                           help="host:port of the coordinator")
 
@@ -328,6 +388,7 @@ class GpCAF:
                      monitor_host=monitor_host,
                      monitor_port=monitor_port,
                      monitor_datadir=options.pgdata,
+                     single=options.single,
                      interactive=options.interactive)
 
 

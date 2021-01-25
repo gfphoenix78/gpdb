@@ -63,6 +63,7 @@ class GpStart:
         self.attempt_standby_start = False
         self.quiet = quiet
         self.masteronly = masteronly
+        self.master_host = 'localhost'
         self.master_datadir = master_datadir
         self.monitor = gp.MonitorNode.fromEnv()
         self.interactive = interactive
@@ -227,8 +228,9 @@ class GpStart:
         if self.master_datadir is None:
             self.master_datadir = gp.get_masterdatadir()
         self.user = unix.getUserName()
-        gp.check_permissions(self.user)
-        self._read_postgresqlconf()
+        gp.check_permissions_remote(self.master_host, self.user, self.gphome)
+        self.port = gp.read_postgresqlconf_remote_int(self.master_host, self.master_datadir, 'port')
+        self.max_connections = gp.read_postgresqlconf_remote_int(self.master_host, self.master_datadir, 'max_connections')
 
     ######
     def _read_postgresqlconf(self):
@@ -241,16 +243,19 @@ class GpStart:
 
     ######
     def _check_version(self):
-        self.gpversion = gp.GpVersion.local('local GP software version check', self.gphome)
+        self.gpversion = gp.GpVersion.remote('local GP software version check',
+                                              self.gphome, self.master_host)
         logger.info("Greenplum Binary Version: '%s'" % self.gpversion)
 
         # It would be nice to work out the catalog version => greenplum version
         # calculation so that we can print out nicer error messages when
         # version doesn't match.
-        bin_catversion = gp.GpCatVersion.local('local GP software catalag version check', self.gphome)
+        bin_catversion = gp.GpCatVersion.remote('local GP software catalag version check',
+                                                self.gphome, self.master_host)
         logger.info("Greenplum Catalog Version: '%s'" % bin_catversion)
 
-        dir_catversion = gp.GpCatVersionDirectory.local('local GP directory catalog version check', self.master_datadir)
+        dir_catversion = gp.GpCatVersionDirectory.remote('local GP directory catalog version check',
+                                                self.master_datadir, self.master_host)
 
         if bin_catversion != dir_catversion:
             logger.info("MASTER_DIRECTORY Catalog Version: '%s'" % dir_catversion)
@@ -272,6 +277,7 @@ class GpStart:
                         verbose=logging_is_verbose(),
                         datadir=self.master_datadir,
                         parallel=self.parallel,
+                        ctxt=REMOTE, remoteHost=self.master_host,
                         logfileDirectory=self.logfileDirectory)
         cmd.run()
         logger.debug("results of forcing master shutdown: %s" % cmd)
@@ -481,12 +487,12 @@ class GpStart:
     def _startMaster(self):
         logger.info("Starting Master instance in admin mode")
 
-        cmd = gp.MasterStart('master in utility mode', self.master_datadir,
-                             self.port, self.era,
+        cmd = gp.MasterStart.remote('master in utility mode', self.master_datadir,
+                             self.master_host, self.port, self.era,
                              wrapper=self.wrapper, wrapper_args=self.wrapper_args,
                              specialMode=self.specialMode, timeout=self.timeout, utilityMode=True
                              )
-        cmd.run()
+#        cmd.run()
 
         if cmd.get_results().rc != 0:
             logger.fatal("Failed to start Master instance in admin mode")
@@ -777,7 +783,7 @@ class GpStart:
                              )
 
         # check that master is running now
-        if not pg.DbStatus.local('master instance', self.gparray.master):
+        if not pg.DbStatus.remote('master instance', self.gparray.master, self.master_host):
             logger.warning("Command pg_ctl reports Master %s on port %d not running" % (
             self.gparray.master.datadir, self.gparray.master.port))
             logger.warning("Master could not be started")

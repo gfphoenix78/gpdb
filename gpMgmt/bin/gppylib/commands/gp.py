@@ -154,6 +154,27 @@ def wait_for_server_ready(host, pgdata, pmstatus='ready', timeout=120):
         return False
     return result['pmstatus'] in pmstatus
 
+def run_script(host, funcname, imports, *args, **kwargs):
+    array = []
+    for arg in args:
+        if type(arg) is str:
+            arg = '"' + arg + '"'
+        array.append(arg)
+    for k,v in kwargs.items():
+        if type(v) is str:
+            v = '"' + v + '"'
+        array.append("{key}={val}".format(key=k, val=v))
+
+    argStr = ', '.join(array)
+    logger.info("""argStr = %s""" % argStr)
+    cmdStr ="""python3 -c 'from {module} import {func}; print({func}({args}))'""".format(
+                module=sys.modules[__name__].__name__,
+                func=funcname,
+                args=argStr)
+    logger.info("cmd = '%s'" % cmdStr)
+    cmd = Command(name='run this method remotely', cmdStr=cmdStr, ctxt=REMOTE, remoteHost=host)
+    #cmd.run(validateAfter=True)
+    return cmd
 #-----------------------------------------------
 
 class CmdArgs(list):
@@ -404,6 +425,7 @@ class MasterStart(Command):
                         max_connections, utilityMode,
                         ctxt=REMOTE, remoteHost=host)
         cmd.run(validateAfter=True)
+        return cmd
 
     @staticmethod
     def local(name, dataDir, port, era,
@@ -1085,6 +1107,13 @@ class GpVersion(Command):
         cmd.run(validateAfter=True)
         return cmd.get_version()
 
+    @staticmethod
+    def remote(name,gphome, host):
+        assert host is not None
+        cmd=GpVersion(name,gphome, ctxt=REMOTE, remoteHost=host)
+        cmd.run(validateAfter=True)
+        return cmd.get_version()
+
 #-----------------------------------------------
 class GpCatVersion(Command):
     """
@@ -1111,6 +1140,13 @@ class GpCatVersion(Command):
         cmd.run(validateAfter=True)
         return cmd.get_version()
 
+    @staticmethod
+    def remote(name,gphome,host):
+        assert host is not None
+        cmd=GpCatVersion(name,gphome, ctxt=REMOTE, remoteHost=host)
+        cmd.run(validateAfter=True)
+        return cmd.get_version()
+
 #-----------------------------------------------
 class GpCatVersionDirectory(Command):
     """
@@ -1131,6 +1167,13 @@ class GpCatVersionDirectory(Command):
         cmd=GpCatVersionDirectory(name,directory)
         cmd.run(validateAfter=True)
         return cmd.get_version()
+    @staticmethod
+    def remote(name,directory, host):
+        assert host is not None
+        cmd=GpCatVersionDirectory(name,directory, ctxt=REMOTE, remoteHost=host)
+        cmd.run(validateAfter=True)
+        return cmd.get_version()
+
 
 
 #-----------------------------------------------
@@ -1240,6 +1283,30 @@ def get_masterport(datadir):
 def check_permissions(username):
     logger.debug("--Checking that current user can use GP binaries")
     chk_gpdb_id(username)
+
+def check_permissions_local(username, gphome):
+    path="%s/bin/initdb" % gphome
+    if not os.access(path,os.X_OK):
+        raise GpError("File permission mismatch.  The current user %s does not have sufficient"
+                      " privileges to run the Greenplum binaries and management utilities." % username )
+def check_permissions_remote(host, username, gphome):
+    cmd = run_script(host, 'check_permissions_local', None, username, gphome)
+    cmd.run(validateAfter=True)
+
+def read_postgresqlconf_local_int(datadir, key):
+    pgconf_dict = pgconf.readfile(datadir + "/postgresql.conf")
+    val = pgconf_dict.int(key)
+    logger.debug("Read from postgresql.conf %s=%s" % (key, val))
+    if type(val) is not int:
+        raise GpError("Fount not value of %s in postgresql.conf" % key)
+    return val
+
+def read_postgresqlconf_remote_int(host, datadir, key):
+    cmd = run_script(host, "read_postgresqlconf_local_int", None, datadir, key)
+    cmd.run(validateAfter=True)
+    val = cmd.get_results().stdout.strip()
+    logger.info("%s => '%s'" % (key, val))
+    return int(val)
 
 
 
@@ -1629,6 +1696,9 @@ def get_local_db_mode(master_data_dir):
 
     return mode
 
+def read_pgport(host, datadir):
+    logger.debug("Read postgres port from %s %data" % (host, datadir))
+    pass
 ######
 def read_postmaster_pidfile(datadir, host=None):
     if host:

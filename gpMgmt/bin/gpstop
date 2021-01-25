@@ -287,6 +287,7 @@ class GpStop:
 
     ######
     def _check_version(self):
+        #self.gpversion = gp.GpVersion.remote('local GP software version check', self.gphome, self.master_host)
         self.gpversion = gp.GpVersion.local('local GP software version check', self.gphome)
         logger.info("Greenplum Version: '%s'" % self.gpversion)
 
@@ -294,6 +295,7 @@ class GpStop:
     def _read_postgresqlconf(self):
         logger.debug("Obtaining master's port from master data directory")
         pgconf_dict = pgconf.readfile(self.master_datadir + "/postgresql.conf")
+        #self.port = gp.read_postgresqlconf_remote_int(self.master_host, self.master_datadir, 'port')
         self.port = pgconf_dict.int('port')
         logger.debug("Read from postgresql.conf port=%s" % self.port)
 
