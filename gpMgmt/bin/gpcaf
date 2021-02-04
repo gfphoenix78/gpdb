@@ -230,8 +230,7 @@ class GpCAF:
         logger.info("deconfig %s from monitor" % name)
         monitor_uri = self._get_monitor_uri()
 
-        url = dbconn.DbURL(hostname=self.monitor.host, port=self.monitor.port,
-                            dbname='pg_auto_failover', username='autoctl_node')
+        url = dbconn.DbURL(hostname=self.monitor.host, port=self.monitor.port, dbname='pg_auto_failover', username='autoctl_node')
         with closing(dbconn.connect(url, True)) as conn:
             line = dbconn.queryRow(conn, "select nodehost, pgdata from pgautofailover.node where nodename='%s'" % name)
             logger.debug("host, pgdata = %s" % line.pgdata)

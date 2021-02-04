@@ -79,7 +79,12 @@ class ReadPostmasterPidFile(Command):
             return None
 
         pid = int(lines[0].strip())
-        if not os.path.exists(os.path.join('/proc', str(pid))):
+
+        ctxt = LOCAL if self.host is None else REMOTE
+        cmd = Command("test pid", "test -e /proc/%s" % str(pid), ctxt=ctxt, remoteHost=self.host)
+        cmd.run(validateAfter=False)
+        if cmd.results.rc != 0:
+            logger.info("process %s doesn't exist" % str(pid))
             return None
 
         result = {}

@@ -196,7 +196,7 @@ clean distclean:
 	rm -rf $(PYLIB_SRC_EXT)/$(PYGRESQL_DIR)/build
 	rm -rf $(PYLIB_SRC)/$(PYGRESQL_DIR)/build
 	rm -rf *.pyc
-	rm -f analyzedbc gpactivatestandbyc gpaddmirrorsc gpcaf gpcheckcatc \
+	rm -f analyzedbc gpactivatestandbyc gpaddmirrorsc gpcafc gpcheckcatc \
 		  gpcheckperfc gpcheckresgroupimplc gpchecksubnetcfgc gpconfigc \
 		  gpdeletesystemc gpexpandc gpinitstandbyc gplogfilterc gpmovemirrorsc \
 		  gppkgc gprecoversegc gpreloadc gpscpc gpsdc gpssh-exkeysc gpsshc \

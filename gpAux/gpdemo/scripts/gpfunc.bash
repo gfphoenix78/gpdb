@@ -3,7 +3,7 @@
 DATADIRS=/home/gpadmin/datadirs
 ipprefix='10.123.119'
 sdbid=8
-N=4
+N=10
 
 function prepareEnv() {
 # assume network namespace is setup properly
