@@ -15,6 +15,17 @@ select application_name, state from pg_stat_replication;
  gp_walreceiver   | streaming 
 (1 row)
 
+-- start_ignore
+-- enable synchronous replication
+!\retcode gpconfig -c synchronous_standby_names -v '*' --masteronly;
+-- start_ignore
+-- end_ignore
+(exited with code 0)
+!\retcode gpstop -u;
+-- start_ignore
+-- end_ignore
+(exited with code 0)
+-- end_ignore
 -- Inject fault on standby to skip WAL flush.
 select gp_inject_fault_infinite('walrecv_skip_flush', 'skip', dbid) from gp_segment_configuration where content=-1 and role='m';
  gp_inject_fault_infinite 
@@ -205,3 +216,13 @@ select wait_until_standby_in_state('streaming');
 -----------------------------
  streaming                   
 (1 row)
+-- start_ignore
+!\retcode gpconfig -c synchronous_standby_names -v '' --masteronly;
+-- start_ignore
+-- end_ignore
+(exited with code 0)
+!\retcode gpstop -u;
+-- start_ignore
+-- end_ignore
+(exited with code 0)
+-- end_ignore

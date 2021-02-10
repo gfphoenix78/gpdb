@@ -11,6 +11,11 @@
 
 select application_name, state from pg_stat_replication;
 
+-- start_ignore
+-- enable synchronous replication
+!\retcode gpconfig -c synchronous_standby_names -v '*' --masteronly;
+!\retcode gpstop -u;
+-- end_ignore
 -- Inject fault on standby to skip WAL flush.
 select gp_inject_fault_infinite('walrecv_skip_flush', 'skip', dbid)
 from gp_segment_configuration where content=-1 and role='m';
@@ -146,3 +151,7 @@ select gp_inject_fault('all', 'reset', dbid)
 insert into commit_blocking_on_standby_t2 values (1);
 
 select wait_until_standby_in_state('streaming');
+-- start_ignore
+!\retcode gpconfig -c synchronous_standby_names -v '' --masteronly;
+!\retcode gpstop -u;
+-- end_ignore

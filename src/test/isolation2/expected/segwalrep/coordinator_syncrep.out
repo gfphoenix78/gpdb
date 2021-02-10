@@ -1,0 +1,134 @@
+-- make sure the status of the coordinator and standby
+-- are in good status
+select dbid,content,role,preferred_role,status from gp_segment_configuration where content=-1 order by dbid;
+ dbid | content | role | preferred_role | status 
+------+---------+------+----------------+--------
+ 1    | -1      | p    | p              | u      
+ 8    | -1      | m    | m              | u      
+(2 rows)
+
+-- start_ignore
+!\retcode gpconfig -c synchronous_standby_names -v '*' --masteronly;
+-- start_ignore
+-- end_ignore
+(exited with code 0)
+!\retcode gpstop -u;
+-- start_ignore
+-- end_ignore
+(exited with code 0)
+-- end_ignore
+show synchronous_standby_names;
+ synchronous_standby_names 
+---------------------------
+ *                         
+(1 row)
+
+-- case 1: bring up the standby should make the session 1 continue to run
+1: select pg_ctl(datadir, 'stop') from gp_segment_configuration where content=-1 and role='m';
+ pg_ctl 
+--------
+ OK     
+(1 row)
+1>: create table t_block_coordinator(i int);  <waiting ...>
+2: select pg_sleep(1);
+ pg_sleep 
+----------
+          
+(1 row)
+2: select oid,relname from pg_class where relname = 't_block_coordinator';
+ oid | relname 
+-----+---------
+(0 rows)
+
+2: select pg_ctl_start(datadir, port, 'dispatch') from gp_segment_configuration where content=-1 and role='m';
+ pg_ctl_start                                     
+--------------------------------------------------
+ waiting for server to start done
+server started
+ 
+(1 row)
+1<:  <... completed>
+CREATE
+2: select relname from pg_class where relname = 't_block_coordinator';
+ relname             
+---------------------
+ t_block_coordinator 
+(1 row)
+2: drop table t_block_coordinator;
+DROP
+
+-- case 2: set synchronous_standby_names to an empty string
+1: select pg_ctl(datadir, 'stop') from gp_segment_configuration where content=-1 and role='m';
+ pg_ctl 
+--------
+ OK     
+(1 row)
+1>: create table t_block_coordinator2(i int);  <waiting ...>
+2: select pg_sleep(1);
+ pg_sleep 
+----------
+          
+(1 row)
+2: select oid,relname from pg_class where relname = 't_block_coordinator2';
+ oid | relname 
+-----+---------
+(0 rows)
+
+-- start_ignore
+!\retcode gpconfig -c synchronous_standby_names -v '' --masteronly;
+-- start_ignore
+-- end_ignore
+(exited with code 0)
+!\retcode gpstop -u;
+-- start_ignore
+-- end_ignore
+(exited with code 1)
+-- end_ignore
+show synchronous_standby_names;
+ synchronous_standby_names 
+---------------------------
+                           
+(1 row)
+
+1<:  <... completed>
+CREATE
+2: select relname from pg_class where relname = 't_block_coordinator2';
+ relname              
+----------------------
+ t_block_coordinator2 
+(1 row)
+2: drop table t_block_coordinator2;
+DROP
+
+-- restore the test environment
+2: select pg_ctl_start(datadir, port, 'dispatch') from gp_segment_configuration where content=-1 and role='m';
+ pg_ctl_start                                     
+--------------------------------------------------
+ waiting for server to start done
+server started
+ 
+(1 row)
+
+-- start_ignore
+!\retcode gpconfig -c synchronous_standby_names -v '*' --masteronly;
+-- start_ignore
+-- end_ignore
+(exited with code 0)
+!\retcode gpstop -u;
+-- start_ignore
+-- end_ignore
+(exited with code 0)
+-- end_ignore
+show synchronous_standby_names;
+ synchronous_standby_names 
+---------------------------
+ *                         
+(1 row)
+
+select content,role,preferred_role,status from gp_segment_configuration where content=-1 order by role;
+ content | role | preferred_role | status 
+---------+------+----------------+--------
+ -1      | m    | m              | u      
+ -1      | p    | p              | u      
+(2 rows)
+

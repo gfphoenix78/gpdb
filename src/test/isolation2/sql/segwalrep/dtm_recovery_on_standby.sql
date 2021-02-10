@@ -31,6 +31,13 @@ from gp_segment_configuration where content = -1 and role = 'p';
 select gp_wait_until_triggered_fault('transaction_abort_failure', 1, dbid)
 from gp_segment_configuration where content = -1 and role = 'p';
 
+-- before promotion, we should turn off synchronous_standby_names
+-- start_ignore
+!\retcode gpconfig -c synchronous_standby_names -v '' --masteronly ;
+!\retcode gpstop -u;
+show synchronous_standby_names;
+-- end_ignore
+
 -- Promote standby
 select pg_ctl(datadir, 'promote') from gp_segment_configuration
 where content = -1 and role = 'm';
@@ -104,3 +111,8 @@ select reinitialize_standby();
 
 -- Sync state between master and standby must be restored at the end.
 select wait_until_standby_in_state('streaming');
+-- start_ignore
+!\retcode gpconfig -c synchronous_standby_names -v '*' --masteronly ;
+!\retcode gpstop -u;
+show synchronous_standby_names;
+-- end_ignore
