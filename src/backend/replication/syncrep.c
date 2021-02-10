@@ -181,46 +181,6 @@ SyncRepWaitForLSN(XLogRecPtr lsn, bool commit)
 	LWLockAcquire(SyncRepLock, LW_EXCLUSIVE);
 	Assert(MyProc->syncRepState == SYNC_REP_NOT_WAITING);
 
-	if (IS_QUERY_DISPATCHER())
-	{
-		/*
-		 * There could be a better way to figure out if there is any active
-		 * standby.  But currently, let's move ahead by looking at the per WAL
-		 * sender structure to see if anyone is really active, streaming (or
-		 * still catching up within limits) and wants to be synchronous.
-		 */
-		bool		syncStandbyPresent = false;
-		int			i;
-
-		for (i = 0; i < max_wal_senders; i++)
-		{
-			/* use volatile pointer to prevent code rearrangement */
-			volatile WalSnd *walsnd = &WalSndCtl->walsnds[i];
-
-			SpinLockAcquire(&walsnd->mutex);
-			syncStandbyPresent = (walsnd->pid != 0)
-				&& ((walsnd->state == WALSNDSTATE_STREAMING)
-					|| (walsnd->state == WALSNDSTATE_CATCHUP &&
-						walsnd->caughtup_within_range))
-				&& walsnd->is_for_gp_walreceiver;
-			SpinLockRelease(&walsnd->mutex);
-
-			if (syncStandbyPresent)
-				break;
-		}
-
-		/* See if we found any active standby connected. If NO, no need to wait.*/
-		if (!syncStandbyPresent)
-		{
-			elogif(debug_walrepl_syncrep, LOG,
-					"syncrep wait -- Not waiting for syncrep because no active and synchronous "
-					"standby (walsender) was found.");
-
-			LWLockRelease(SyncRepLock);
-			return;
-		}
-	}
-
 	/*
 	 * We don't wait for sync rep if WalSndCtl->sync_standbys_defined is not
 	 * set.  See SyncRepUpdateSyncStandbysDefined.
@@ -229,7 +189,7 @@ SyncRepWaitForLSN(XLogRecPtr lsn, bool commit)
 	 * condition but we'll be fetching that cache line anyway so it's likely
 	 * to be a low cost check.
 	 */
-	if (((!IS_QUERY_DISPATCHER()) && !WalSndCtl->sync_standbys_defined) ||
+	if (!WalSndCtl->sync_standbys_defined ||
 		lsn <= WalSndCtl->lsn[mode])
 	{
 		elogif(debug_walrepl_syncrep, LOG,
@@ -482,21 +442,12 @@ SyncRepInitConfig(void)
 	 * for handling replies from standby.
 	 */
 	priority = SyncRepGetStandbyPriority();
-
-	/*
-	 * Greenplum: master/standby replication is considered synchronous even
-	 * when synchronous_standby_names GUC is not set.
-	 */
-	if (IS_QUERY_DISPATCHER() && MyWalSnd->is_for_gp_walreceiver)
-	{
-		priority = 1;
-	}
-
 	if (MyWalSnd->sync_standby_priority != priority)
 	{
-		LWLockAcquire(SyncRepLock, LW_EXCLUSIVE);
+		SpinLockAcquire(&MyWalSnd->mutex);
 		MyWalSnd->sync_standby_priority = priority;
-		LWLockRelease(SyncRepLock);
+		SpinLockRelease(&MyWalSnd->mutex);
+
 		ereport(DEBUG1,
 				(errmsg("standby \"%s\" now has synchronous standby priority %u",
 						application_name, priority)));

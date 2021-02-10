@@ -50,6 +50,25 @@ select gp_wait_until_triggered_fault('transaction_abort_failure', 1, dbid) from 
  Success:                      
 (1 row)
 
+-- before promotion, we should turn off synchronous_standby_names
+-- start_ignore
+!\retcode gpconfig -c synchronous_standby_names -v '' --masteronly ;
+-- start_ignore
+
+-- end_ignore
+(exited with code 0)
+!\retcode gpstop -u;
+-- start_ignore
+
+-- end_ignore
+(exited with code 0)
+show synchronous_standby_names;
+ synchronous_standby_names 
+---------------------------
+                           
+(1 row)
+-- end_ignore
+
 -- Promote standby
 select pg_ctl(datadir, 'promote') from gp_segment_configuration where content = -1 and role = 'm';
  pg_ctl 
@@ -131,3 +150,20 @@ select wait_until_standby_in_state('streaming');
 -----------------------------
  streaming                   
 (1 row)
+-- start_ignore
+!\retcode gpconfig -c synchronous_standby_names -v '*' --masteronly ;
+-- start_ignore
+
+-- end_ignore
+(exited with code 0)
+!\retcode gpstop -u;
+-- start_ignore
+
+-- end_ignore
+(exited with code 0)
+show synchronous_standby_names;
+ synchronous_standby_names 
+---------------------------
+ *                         
+(1 row)
+-- end_ignore
