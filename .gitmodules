@@ -5,3 +5,7 @@
 [submodule "gpcontrib/gpcloud/test/googletest"]
 	path = gpcontrib/gpcloud/test/googletest
 	url = https://github.com/google/googletest.git
+[submodule "contrib/pg_auto_failover"]
+	path = contrib/pg_auto_failover
+	url = https://github.com/gfphoenix78/pg_auto_failover.git
+	branch = autofailover
