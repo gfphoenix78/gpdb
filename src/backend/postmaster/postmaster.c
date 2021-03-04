@@ -998,6 +998,15 @@ PostmasterMain(int argc, char *argv[])
 	if (!SelectConfigFiles(userDoption, progname))
 		ExitPostmaster(2);
 
+    elog(LOG, "role=%d, dbid=%d, segindex=%d\n", (int)Gp_role, GpIdentity.dbid, GpIdentity.segindex);
+	if (Gp_role == GP_ROLE_UTILITY)
+	{
+		if (GpIdentity.dbid < 0)
+			GpIdentity.dbid = -1;
+		if (GpIdentity.segindex < -1)
+			GpIdentity.segindex = -1;
+	}
+
 	/*
 	 * CDB/MPP/GPDB: Set the processor affinity (may be a no-op on
 	 * some platforms). The port number is nice to use because we know
