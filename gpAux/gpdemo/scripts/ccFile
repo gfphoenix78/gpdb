@@ -1,0 +1,35 @@
+# Set this to anything you like
+# gpinitsystem -I ccfile3
+ARRAY_NAME="Demo 87dcced0db8f Cluster"
+
+# This names the data directories for the Segment Instances and the Entry Postmaster
+SEG_PREFIX=demoDataDir
+
+# Shell to use to execute commands on all hosts
+TRUSTED_SHELL="/home/gpadmin/gpdb/gpAux/gpdemo/lalshell"
+TRUSTED_SHELL="/usr/bin/ssh"
+
+ENCODING=UNICODE
+
+
+DEFAULT_QD_MAX_CONNECT=150
+QE_CONNECT_FACTOR=5
+
+
+# Coordinator auto failover
+MONITOR_HOST=10.123.119.10
+MONITOR_PORT=7999
+MONITOR_DATADIR=/home/gpadmin/datadirs/M/gpmonitor
+
+QD_PRIMARY_ARRAY=10.123.119.1~10.123.119.1~7000~/home/gpadmin/datadirs/entry/entry-1~1~-1
+# standby 10.123.119.8~10.123.119.8~7001~//home/gpadmin/datadirs/entry/standby~8~-1
+declare -a PRIMARY_ARRAY=(
+10.123.119.2~10.123.119.2~7002~/home/gpadmin/datadirs/seg/seg0~2~0
+10.123.119.3~10.123.119.3~7003~/home/gpadmin/datadirs/seg/seg1~3~1
+10.123.119.4~10.123.119.4~7004~/home/gpadmin/datadirs/seg/seg2~4~2
+)
+declare -a MIRROR_ARRAY=(
+10.123.119.5~10.123.119.5~7005~/home/gpadmin/datadirs/mirror/seg0~5~0
+10.123.119.6~10.123.119.6~7006~/home/gpadmin/datadirs/mirror/seg1~6~1
+10.123.119.7~10.123.119.7~7007~/home/gpadmin/datadirs/mirror/seg2~7~2
+)
