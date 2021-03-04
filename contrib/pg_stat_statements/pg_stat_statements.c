@@ -2481,6 +2481,7 @@ JumbleRangeTable(pgssJumbleState *jstate, List *rtable)
 				APP_JUMB_STRING(rte->enrname);
 				break;
 			case RTE_RESULT:
+			case RTE_TABLEFUNCTION: /* FIXME */
 				break;
 			default:
 				elog(ERROR, "unrecognized RTE kind: %d", (int) rte->rtekind);
@@ -2969,6 +2970,9 @@ JumbleExpr(pgssJumbleState *jstate, Node *node)
 				JumbleExpr(jstate, (Node *) tsc->args);
 				JumbleExpr(jstate, (Node *) tsc->repeatable);
 			}
+			break;
+		case T_GroupId:
+			/* FIXME: GPDB specific switch-case */
 			break;
 		default:
 			/* Only a warning, since we can stumble along anyway */
