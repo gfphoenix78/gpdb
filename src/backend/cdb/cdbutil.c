@@ -982,7 +982,15 @@ cdbcomponent_getComponentInfo(int contentId)
 	/* entry db */
 	if (contentId == -1)
 	{
-		cdbInfo = &cdbs->entry_db_info[0];	
+		int i;
+		for (i = 0; i < cdbs->total_entry_dbs; i++)
+		{
+			if (cdbs->entry_db_info[i].config->dbid == GpIdentity.dbid)
+			{
+				cdbInfo = &cdbs->entry_db_info[i];	
+				break;
+			}
+		}
 		return cdbInfo;
 	}
 
@@ -1041,17 +1049,7 @@ ensureInterconnectAddress(void)
 		 * from `cdbcomponent*`. We couldn't get it in a way as the QEs.
 		 */
 		CdbComponentDatabaseInfo *qdInfo;
-		CdbComponentDatabases *cdbs;
-		cdbs = cdbcomponent_getCdbComponents();
-		qdInfo = NULL;
-		for (int i = 0; i < cdbs->total_entry_dbs; i++)
-		{
-			if (cdbs->entry_db_info[i].config->dbid == GpIdentity.dbid)
-			{
-				qdInfo = &cdbs->entry_db_info[i];
-				break;
-			}
-		}
+		qdInfo = cdbcomponent_getComponentInfo(MASTER_CONTENT_ID);
 		Assert(qdInfo != NULL);
 
 		interconnect_address = MemoryContextStrdup(TopMemoryContext, qdInfo->config->hostip);
