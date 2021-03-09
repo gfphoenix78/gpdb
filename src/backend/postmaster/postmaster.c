@@ -998,7 +998,12 @@ PostmasterMain(int argc, char *argv[])
 	if (!SelectConfigFiles(userDoption, progname))
 		ExitPostmaster(2);
 
-    elog(LOG, "role=%d, dbid=%d, segindex=%d\n", (int)Gp_role, GpIdentity.dbid, GpIdentity.segindex);
+	/*
+	 * When the instance runs as utility, its dbid and segindex(content)
+	 * may not be set properly. Mostly, the instance is not part of a GPDB
+	 * cluster. It's better to have the pair of dbid and content different to
+	 * the normal instances(coordinator or segment) in GPDB.
+	 */
 	if (Gp_role == GP_ROLE_UTILITY)
 	{
 		if (GpIdentity.dbid < 0)
