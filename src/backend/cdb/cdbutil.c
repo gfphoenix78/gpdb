@@ -982,14 +982,14 @@ cdbcomponent_getComponentInfo(int contentId)
 	/* entry db */
 	if (contentId == -1)
 	{
-		int i;
-		for (i = 0; i < cdbs->total_entry_dbs; i++)
+		if (HotStandbyActive())
 		{
-			if (cdbs->entry_db_info[i].config->dbid == GpIdentity.dbid)
-			{
-				cdbInfo = &cdbs->entry_db_info[i];	
-				break;
-			}
+			Assert(cdbs->total_entry_dbs == 2);
+			cdbInfo = &cdbs->entry_db_info[1];
+		}
+		else
+		{
+			cdbInfo = &cdbs->entry_db_info[0];
 		}
 		return cdbInfo;
 	}
@@ -1050,8 +1050,6 @@ ensureInterconnectAddress(void)
 		 */
 		CdbComponentDatabaseInfo *qdInfo;
 		qdInfo = cdbcomponent_getComponentInfo(MASTER_CONTENT_ID);
-		Assert(qdInfo != NULL);
-
 		interconnect_address = MemoryContextStrdup(TopMemoryContext, qdInfo->config->hostip);
 	}
 	else if (qdHostname && qdHostname[0] != '\0')
@@ -1089,6 +1087,11 @@ cdb_setup(void)
 	 *
 	 * Ignore background worker because bgworker_should_start_mpp() already did
 	 * the check.
+	 *
+	 * In order to facilitate coordinator / standby autofailover, the standby
+	 * needs to be able to run catalog queries. Some third parties such as
+	 * pg_auto_failover need to do so. Full capability to execute
+	 * distributed transactions is not needed.
 	 */
 	if (!IsBackgroundWorker &&
 		Gp_role == GP_ROLE_DISPATCH &&
