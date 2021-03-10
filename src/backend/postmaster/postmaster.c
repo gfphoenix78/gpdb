@@ -987,9 +987,6 @@ PostmasterMain(int argc, char *argv[])
 		ExitPostmaster(1);
 	}
 
-	/* If gp_role is not set, use utility role instead.*/
-	if (Gp_role == GP_ROLE_UNDEFINED)
-		SetConfigOption("gp_role", "utility", PGC_POSTMASTER, PGC_S_OVERRIDE);
 
 	/*
 	 * Locate the proper configuration files and data directory, and read
@@ -998,6 +995,18 @@ PostmasterMain(int argc, char *argv[])
 	if (!SelectConfigFiles(userDoption, progname))
 		ExitPostmaster(2);
 
+	/* If gp_role is not set, use utility role instead.*/
+	if (Gp_role == GP_ROLE_UNDEFINED)
+	{
+		const char *role;
+		if (GpIdentity.dbid < 0 || GpIdentity.segindex < -1)
+			role = "utility";
+		else if (GpIdentity.segindex == -1)
+			role = "dispatch";
+		else
+			role = "execute";
+		SetConfigOption("gp_role", role, PGC_POSTMASTER, PGC_S_ARGV);
+	}
 	/*
 	 * When the instance runs as utility, its dbid and segindex(content)
 	 * may not be set properly. Mostly, the instance is not part of a GPDB
@@ -1007,9 +1016,9 @@ PostmasterMain(int argc, char *argv[])
 	if (Gp_role == GP_ROLE_UTILITY)
 	{
 		if (GpIdentity.dbid < 0)
-			GpIdentity.dbid = -1;
+			SetConfigOption("gp_dbid", "-1", PGC_POSTMASTER, PGC_S_OVERRIDE);
 		if (GpIdentity.segindex < -1)
-			GpIdentity.segindex = -1;
+			SetConfigOption("gp_contentid", "-1", PGC_POSTMASTER, PGC_S_OVERRIDE);
 	}
 
 	/*
