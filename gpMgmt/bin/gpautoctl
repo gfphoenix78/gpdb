@@ -32,7 +32,7 @@ def _get_conf_by_dbid(gparray, dbid, missingOK=True):
     raise Exception("not exist dbid=%d in gp_segment_configuration" % dbid)
 
 
-class GpCAF:
+class GpAutoctl:
     ######
     '''
     When configuring the GPDB cluster with coordinator auto failover,
@@ -372,7 +372,7 @@ class GpCAF:
             logger.error("Invalidate mode value: %s, see HELP" % options.mode)
             sys.exit(1)
 
-        return GpCAF(mode=options.mode,
+        return GpAutoctl(mode=options.mode,
                      coordinator_host=coordinator_host,
                      coordinator_port=coordinator_port,
                      monitor_host=monitor_host,
@@ -383,5 +383,5 @@ class GpCAF:
 
 
 if __name__ == '__main__':
-    simple_main(GpCAF.createParser, GpCAF.createProgram)
+    simple_main(GpAutoctl.createParser, GpAutoctl.createProgram)
 
