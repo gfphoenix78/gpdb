@@ -174,8 +174,6 @@ class GpAutoctl:
         cmdStr += " --pghost %s" % node.address
         cmdStr += " --pgport %s" % node.port
         cmdStr += " --pgdata %s" % node.datadir
-        cmdStr += " --gp_dbid %s" % node.dbid
-        cmdStr += " --gp_role dispatch"
         cmdStr += " --monitor %s" % monitor_uri
         cmdStr += " --auth trust --no-ssl"
         logger.info(cmdStr)
