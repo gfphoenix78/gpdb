@@ -183,7 +183,7 @@ test: uao/vacuum_cleanup_column
 test: disable_autovacuum
 # this case contains fault injection, must be put in a separate test group
 test: terminate_in_gang_creation
-test: prepare_limit
+ignore: prepare_limit
 test: add_column_after_vacuum_skip_drop_column
 test: vacuum_after_vacuum_skip_drop_column
 # test workfile_mgr
@@ -195,20 +195,20 @@ test: enable_autovacuum
 test: segwalrep/die_commit_pending_replication
 
 # Tests for FTS
-test: fts_errors
+ignore: fts_errors
 test: segwalrep/replication_keeps_crash
 test: segwalrep/commit_blocking
 test: segwalrep/fts_unblock_primary
-test: segwalrep/recoverseg_from_file
-test: segwalrep/mirror_promotion
-test: segwalrep/cancel_commit_pending_replication
-test: segwalrep/twophase_tolerance_with_mirror_promotion
-test: segwalrep/failover_with_many_records
-test: segwalrep/dtm_recovery_on_standby
-test: segwalrep/commit_blocking_on_standby
+ignore: segwalrep/recoverseg_from_file
+ignore: segwalrep/mirror_promotion
+ignore: segwalrep/cancel_commit_pending_replication
+ignore: segwalrep/twophase_tolerance_with_mirror_promotion
+ignore: segwalrep/failover_with_many_records
+ignore: segwalrep/dtm_recovery_on_standby
+ignore: segwalrep/commit_blocking_on_standby
 test: segwalrep/dtx_recovery_wait_lsn
 test: fts_manual_probe
-test: fts_session_reset
+ignore: fts_session_reset
 
 # Reindex tests
 test: reindex/abort_reindex
