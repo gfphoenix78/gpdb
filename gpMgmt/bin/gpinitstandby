@@ -516,7 +516,7 @@ def _run_gpautoctl(gphome, coordinator, standby, monitor):
         logger.warning("invalid monitor info, ignore to register the newly standby for autofailover")
         return
 
-    cmdStr="%s/bin/gpautoctl -a -m config" % gphome
+    cmdStr="%s/bin/gpautoctl -a -m register" % gphome
     cmdStr += " --single %d" % standby.dbid
     cmdStr += " -M %s:%s -D %s" % (monitor_list[0], monitor_list[1], monitor_list[2])
     cmdStr += " -c %s:%s" % (coordinator.hostname, coordinator.port)
