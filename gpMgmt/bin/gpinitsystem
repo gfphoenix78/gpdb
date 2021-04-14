@@ -77,6 +77,7 @@ SINGLE_HOST_BATCH_LIMIT=4
 INPUT_CONFIG=""
 OUTPUT_CONFIG=""
 STANDBY_RET_CODE=0
+QD_DBID="-1"
 
 #******************************************************************************
 # DCA Specific Variables
@@ -1241,6 +1242,9 @@ CREATE_QD_DB () {
 		SED_PG_CONF ${GP_DIR}/$PG_INTERNAL_CONF "$DBID_TXT" "gp_dbid=$GP_DBID" 0
 		ERROR_CHK $? "set gp_dbid=$GP_DBID in ${GP_DIR}/$PG_INTERNAL_CONF" 1
 
+		QD_DBID=$GP_DBID
+		LOG_MSG "[INFO]:-Setting Coordinator ID QD_DBID=$QD_DBID"
+
 		if [  x"" != x"$PG_CONF_ADD_FILE" ]; then
 				LOG_MSG "[INFO]:-Processing additional configuration parameters"
 				for NEW_PARAM in `$CAT $PG_CONF_ADD_FILE|$TR -s ' '|$TR -d ' '|$GREP -v "^#"`
@@ -1978,6 +1982,9 @@ if [ x"" != x"$DATABASE_NAME" ]; then
 fi
 
 SET_GP_USER_PW
+
+$PSQL -d template1 -p $COORDINATOR_PORT -c "ALTER SYSTEM SET gp_assigned_coordinator_id TO $QD_DBID" >> $LOG_FILE 2>&1
+ERROR_CHK $? "alter system set gp_assigned_coordinator_id to $QD_DBID" 2
 
 if [ $MIRRORING -ne 0 ]; then
     REGISTER_MIRRORS
