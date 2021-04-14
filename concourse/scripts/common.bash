@@ -74,6 +74,29 @@ EOF
   popd
 }
 
+# set gucs that require to restart the cluster
+function set_server_gucs() {
+  pushd gpdb_src/gpAux/gpdemo
+
+  su gpadmin -c bash -- -e <<EOF
+  source /usr/local/greenplum-db-devel/greenplum_path.sh
+  source $PWD/gpdemo-env.sh
+
+  need_restart='no'
+  if [ "\$HOT_STANDBY" == "true" ]; then
+      need_restart='yes'
+      gpconfig -c hot_standby -v on
+  fi
+
+  if [ "$need_restart" != 'no' ]; then
+      gpstop -air
+  fi
+
+EOF
+
+  popd
+}
+
 function run_test() {
   su gpadmin -c "bash /opt/run_test.sh $(pwd)"
 }

@@ -64,6 +64,7 @@ function _main() {
     time install_and_configure_gpdb
     time setup_gpadmin_user
     time make_cluster
+    time set_server_gucs
     time gen_env
     time run_test
 
