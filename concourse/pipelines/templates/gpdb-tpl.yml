@@ -210,6 +210,7 @@ groups:
   - icw_gporca_icproxy_centos7
   - icw_planner_icproxy_centos7
   - icw_gporca_ictcp_centos7
+  - icw_hotstandby_centos7
   - unit_tests_gporca_centos7
 {% endif %}
 {% if "centos7" in os_types and "CLI" in test_sections %}
@@ -303,6 +304,7 @@ groups:
   - icw_gporca_icproxy_centos7
   - icw_planner_icproxy_centos7
   - icw_gporca_ictcp_centos7
+  - icw_hotstandby_centos7
   - compile_gpdb_centos7
 {% endif %}
 {% if "centos7" in os_types and "CLI" in test_sections %}
@@ -418,6 +420,11 @@ resource_types:
 ## ======================================================================
 
 resources:
+- name: clang_toolchain
+  type: registry-image
+  source:
+    repository: gcr.io/data-orca/clang-toolchain
+
 {% if "ResourceGroups" in test_sections or "CLI" in test_sections %}
 - name: ccp_src
   type: git
@@ -442,11 +449,6 @@ resources:
   source:
     repository: alpine
     tag: latest
-
-- name: clang_toolchain
-  type: registry-image
-  source:
-    repository: gcr.io/data-orca/clang-toolchain
 
 - name: ccp-image
   type: registry-image
@@ -899,6 +901,29 @@ jobs:
     params:
       file: sqldump/dump.sql.xz
 
+- name: icw_hotstandby_centos7
+  plan:
+  - in_parallel:
+      steps:
+      - get: gpdb_src
+        passed: [compile_gpdb_centos7]
+      - get: bin_gpdb
+        passed: [compile_gpdb_centos7]
+        resource: bin_gpdb_centos7
+        trigger: [[ test_trigger ]]
+      - get: gpdb7-centos7-test
+  - task: ic_gpdb
+    {% if use_ICW_workers %}
+    tags: [icw-centos7]
+    {% endif %}
+    file: gpdb_src/concourse/tasks/ic_gpdb.yml
+    image: gpdb7-centos7-test
+    params:
+      MAKE_TEST_COMMAND: -k PGOPTIONS='-c optimizer=off' installcheck-world
+      TEST_OS: centos
+      HOT_STANDBY: true
+      CONFIGURE_FLAGS: ((configure_flags))
+
 - name: icw_gporca_icproxy_centos7
   plan:
   - in_parallel:
@@ -1079,6 +1104,7 @@ jobs:
         - icw_gporca_icproxy_centos7
         - icw_planner_icproxy_centos7
         - icw_gporca_ictcp_centos7
+        - icw_hotstandby_centos7
 {% if "Extensions" in test_sections %}
         - icw_extensions_gpcloud_centos7
 {% endif %}
@@ -1094,6 +1120,7 @@ jobs:
         - icw_gporca_icproxy_centos7
         - icw_planner_icproxy_centos7
         - icw_gporca_ictcp_centos7
+        - icw_hotstandby_centos7
         - unit_tests_gporca_centos7
 {% if "Extensions" in test_sections %}
         - icw_extensions_gpcloud_centos7
@@ -1796,6 +1823,7 @@ jobs:
         - icw_gporca_icproxy_centos7
         - icw_planner_icproxy_centos7
         - icw_gporca_ictcp_centos7
+        - icw_hotstandby_centos7
         - icw_extensions_gpcloud_centos7
         - resource_group_centos7
         - icw_gporca_ubuntu18.04
@@ -1826,6 +1854,7 @@ jobs:
         - icw_gporca_icproxy_centos7
         - icw_planner_icproxy_centos7
         - icw_gporca_ictcp_centos7
+        - icw_hotstandby_centos7
         - icw_extensions_gpcloud_centos7
         - resource_group_centos7
         - cli_cross_subnet
