@@ -87,7 +87,6 @@ class GpAutoctl:
 
     def _prepare_monitor(self):
         cmdStr = ""
-        cmdStr += ". %s/greenplum_path.sh;" % self.gphome
         cmdStr += " %s/bin/pg_autoctl create monitor" % self.gphome
         cmdStr += " --pgdata %s" % self.monitor.datadir
         cmdStr += " --pgport %s" % self.monitor.port
@@ -100,9 +99,12 @@ class GpAutoctl:
         logger.info("Create monitor successfully")
         logger.info("Starting the monitor...")
         cmdStr = ""
-        cmdStr += ". %s/greenplum_path.sh;" % self.gphome
-        cmdStr += " PGAUTOCTL_DAEMON=yes %s/bin/pg_autoctl run" % self.gphome
+        cmdStr += " nohup %s/bin/pg_autoctl run" % self.gphome
         cmdStr += " --pgdata %s" % self.monitor.datadir
+        cmdStr += " < /dev/null"
+        cmdStr += " > %s/log/autofailover.log" % self.monitor.datadir
+        cmdStr += " 2>&1"
+        cmdStr += " &"
         cmd = Command(name="Start monitor", cmdStr=cmdStr,
                         ctxt=REMOTE, remoteHost=self.monitor.host)
         cmd.run(validateAfter=True)
@@ -116,7 +118,6 @@ class GpAutoctl:
             return self.monitor_uri
         logger.info("Query monitor uri")
         cmdStr = ""
-        cmdStr += ". %s/greenplum_path.sh;" % self.gphome
         cmdStr += " %s/bin/pg_autoctl show uri --monitor" % self.gphome
         cmdStr += " --pgdata %s" % self.monitor.datadir
         cmd = Command(name="Show monitor uri", cmdStr=cmdStr,
@@ -156,7 +157,6 @@ class GpAutoctl:
     def _register_node(self, node, final_status):
         assert node is not None
         cmdStr = ""
-        cmdStr += " . %s/greenplum_path.sh;" % self.gphome
         cmdStr += " pg_ctl stop -D %s" % node.datadir
         cmd = Command(name="Stop coordinator", cmdStr=cmdStr,
                         ctxt=REMOTE, remoteHost=node.hostname)
@@ -167,7 +167,6 @@ class GpAutoctl:
         logger.info("monitor_uri :'%s'" % monitor_uri)
 
         cmdStr = ""
-        cmdStr += " . %s/greenplum_path.sh;" % self.gphome
         cmdStr += " %s/bin/pg_autoctl create postgres" % self.gphome
         cmdStr += " --name %s" % id_to_name(node.dbid)
         cmdStr += " --hostname %s" % node.hostname
@@ -183,9 +182,12 @@ class GpAutoctl:
         cmd.run(validateAfter=True)
 
         cmdStr = ""
-        cmdStr += ". %s/greenplum_path.sh;" % self.gphome
-        cmdStr += " PGAUTOCTL_DAEMON=yes %s/bin/pg_autoctl run" % self.gphome
+        cmdStr += " nohup %s/bin/pg_autoctl run" % self.gphome
         cmdStr += " --pgdata %s" % node.datadir
+        cmdStr += " < /dev/null"
+        cmdStr += " > %s/log/autofailover.log" % node.datadir
+        cmdStr += " 2>&1"
+        cmdStr += " &"
         cmd = Command(name="Run coordinator", cmdStr=cmdStr,
                         ctxt=REMOTE, remoteHost=node.hostname)
         logger.info(cmd)

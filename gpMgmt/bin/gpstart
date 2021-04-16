@@ -178,7 +178,11 @@ class GpStart:
 
     def _start_pgautoctl_node(self, host, pgdata, pmstatus, timeout=120):
         logger.info("start pg_autoctl for %s - %s, expected pmstatus=%s" % (host, pgdata, pmstatus))
-        cmdStr = "export PGAUTOCTL_DAEMON=yes; pg_autoctl run --pgdata %s" % pgdata
+        cmdStr = "nohup pg_autoctl run --pgdata %s" % pgdata
+        cmdStr += " < /dev/null"
+        cmdStr += " > %s/log/autofailover.log" % pgdata
+        cmdStr += " 2>&1"
+        cmdStr += " &"
         cmd = Command("pg_autoctl to start", cmdStr, REMOTE, host)
         cmd.run(validateAfter=True)
         return gp.wait_for_server_ready(host, pgdata, pmstatus, timeout)
