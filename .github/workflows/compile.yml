@@ -1,0 +1,17 @@
+name: Dev life
+on: 
+  push:
+    tags:
+      - v*
+  workflow_dispatch:
+
+jobs:
+  build:
+    name: Hello world action
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v1
+      - uses: ./.github/actions/compile
+      - name: show env
+        run: |
+          echo "ALL IS WELL"

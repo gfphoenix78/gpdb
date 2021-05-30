@@ -1,0 +1,14 @@
+name: "compile_centos7"
+description: "Compile gpdb for centos7"
+author: "gfphoenix78@gmail.com"
+
+inputs:
+  MY_NAME:
+    description: "Who to greet"
+    required: true
+    default: "World"
+
+
+runs:
+  using: "docker"
+  image: "Dockerfile"
