@@ -166,6 +166,9 @@ typedef struct AllocSetContext
 	 */
 	AllocChunk  allocList;
 #endif
+#ifdef MEMORY_CONTEXT_TRACKER
+  char mc_tracker[32];
+#endif
 } AllocSetContext;
 
 typedef AllocSetContext *AllocSet;

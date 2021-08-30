@@ -47,6 +47,10 @@
 #define CDB_MCXT_WHERE(context) __FILE__, __LINE__
 #endif
 
+#define MEMORY_CONTEXT_TRACKER
+#include "memory_context_tracker.c"
+
+
 #if defined(CDB_PALLOC_TAGS) && !defined(CDB_PALLOC_CALLER_ID)
 #error "If CDB_PALLOC_TAGS is defined, CDB_PALLOC_CALLER_ID must be defined too"
 #endif
@@ -195,6 +199,7 @@ MemoryContextReset(MemoryContext context)
 		context->isReset = true;
 		VALGRIND_DESTROY_MEMPOOL(context);
 		VALGRIND_CREATE_MEMPOOL(context, 0, false);
+    MEMORY_CONTEXT_RESET(context);
 	}
 }
 
@@ -224,8 +229,7 @@ MemoryContextResetChildren(MemoryContext context)
  * for the context, but we have to delete the context node itself,
  * as well as recurse to get the children.  We must also delink the
  * node from its parent, if it has one.
- */
-void
+ */ void
 MemoryContextDeleteImpl(MemoryContext context, const char* sfile, const char *func, int sline)
 {
 	AssertArg(MemoryContextIsValid(context));
@@ -250,6 +254,7 @@ MemoryContextDeleteImpl(MemoryContext context, const char* sfile, const char *fu
 
 	(*context->methods.delete_context) (context);
 	VALGRIND_DESTROY_MEMPOOL(context);
+  MEMORY_CONTEXT_DELETE(context);
 	pfree(context);
 }
 
@@ -1122,6 +1127,7 @@ MemoryContextCreate(NodeTag tag, Size size,
 	}
 
 	VALGRIND_CREATE_MEMPOOL(node, 0, false);
+  MEMORY_CONTEXT_INIT(node);
 
 	/* Return to type-specific creation routine to finish up */
 	return node;
@@ -1135,7 +1141,7 @@ MemoryContextCreate(NodeTag tag, Size size,
  * nodes/memnodes.h into postgres.h which seems a bad idea.
  */
 void *
-MemoryContextAlloc(MemoryContext context, Size size)
+MemoryContextAllocImpl(MemoryContext context, Size size, const char *filename, int lineno)
 {
 	void	   *ret;
 #ifdef PGTRACE_ENABLED
@@ -1159,6 +1165,7 @@ MemoryContextAlloc(MemoryContext context, Size size)
 
 	ret = (*context->methods.alloc) (context, size);
 	VALGRIND_MEMPOOL_ALLOC(context, ret, size);
+  MEMORY_CONTEXT_ALLOC(context, filename, lineno, ret);
 
 #ifdef PGTRACE_ENABLED
 	header = (StandardChunkHeader *)
@@ -1177,7 +1184,7 @@ MemoryContextAlloc(MemoryContext context, Size size)
  *	is a very common combination, so we provide the combined operation.
  */
 void *
-MemoryContextAllocZero(MemoryContext context, Size size)
+MemoryContextAllocZeroImpl(MemoryContext context, Size size, const char *filename, int lineno)
 {
 	void	   *ret;
 
@@ -1201,6 +1208,7 @@ MemoryContextAllocZero(MemoryContext context, Size size)
 
 	ret = (*context->methods.alloc) (context, size);
 	VALGRIND_MEMPOOL_ALLOC(context, ret, size);
+  MEMORY_CONTEXT_ALLOC(context, filename, lineno, ret);
 
 	MemSetAligned(ret, 0, size);
 
@@ -1221,7 +1229,7 @@ MemoryContextAllocZero(MemoryContext context, Size size)
  *	is so often called with compile-time-constant sizes.
  */
 void *
-MemoryContextAllocZeroAligned(MemoryContext context, Size size)
+MemoryContextAllocZeroAlignedImpl(MemoryContext context, Size size, const char *filename, int lineno)
 {
 	void	   *ret;
 
@@ -1246,6 +1254,7 @@ MemoryContextAllocZeroAligned(MemoryContext context, Size size)
 
 	ret = (*context->methods.alloc) (context, size);
 	VALGRIND_MEMPOOL_ALLOC(context, ret, size);
+  MEMORY_CONTEXT_ALLOC(context, filename, lineno, ret);
 
 	MemSetLoop(ret, 0, size);
 
@@ -1259,7 +1268,7 @@ MemoryContextAllocZeroAligned(MemoryContext context, Size size)
 }
 
 void *
-palloc(Size size)
+pallocImpl(Size size, const char *filename, int lineno)
 {
 	/* duplicates MemoryContextAlloc to avoid increased overhead */
 	void	   *ret;
@@ -1273,12 +1282,13 @@ palloc(Size size)
 
 	ret = (*CurrentMemoryContext->methods.alloc) (CurrentMemoryContext, size);
 	VALGRIND_MEMPOOL_ALLOC(CurrentMemoryContext, ret, size);
+  MEMORY_CONTEXT_ALLOC(CurrentMemoryContext, filename, lineno, ret);
 
 	return ret;
 }
 
 void *
-palloc0(Size size)
+palloc0Impl(Size size, const char *filename, int lineno)
 {
 	/* duplicates MemoryContextAllocZero to avoid increased overhead */
 	void	   *ret;
@@ -1292,6 +1302,7 @@ palloc0(Size size)
 
 	ret = (*CurrentMemoryContext->methods.alloc) (CurrentMemoryContext, size);
 	VALGRIND_MEMPOOL_ALLOC(CurrentMemoryContext, ret, size);
+  MEMORY_CONTEXT_ALLOC(CurrentMemoryContext, filename, lineno, ret);
 
 	MemSetAligned(ret, 0, size);
 
@@ -1344,6 +1355,7 @@ pfree(void *pointer)
 	else
 		Assert(header);   /* this assert never fails. Just here so we can set breakpoint in debugger. */
 	VALGRIND_MEMPOOL_FREE(context, pointer);
+  MEMORY_CONTEXT_FREE(context, pointer);
 }
 
 /*
@@ -1351,7 +1363,7 @@ pfree(void *pointer)
  *		Adjust the size of a previously allocated chunk.
  */
 void *
-repalloc(void *pointer, Size size)
+repallocImpl(void *pointer, Size size, const char *filename, int lineno)
 {
 	StandardChunkHeader *header;
 	MemoryContext context;
@@ -1400,6 +1412,7 @@ repalloc(void *pointer, Size size)
 
 	ret = (*context->methods.realloc) (context, pointer, size);
 	VALGRIND_MEMPOOL_CHANGE(context, pointer, ret, size);
+  MEMORY_CONTEXT_REALLOC(context, pointer, ret, filename, lineno);
 
 #ifdef PGTRACE_ENABLED
 	header = (StandardChunkHeader *)
@@ -1417,7 +1430,7 @@ repalloc(void *pointer, Size size)
  * See considerations in comment at MaxAllocHugeSize.
  */
 void *
-MemoryContextAllocHuge(MemoryContext context, Size size)
+MemoryContextAllocHugeImpl(MemoryContext context, Size size, const char *filename, int lineno)
 {
 	void	   *ret;
 
@@ -1430,6 +1443,7 @@ MemoryContextAllocHuge(MemoryContext context, Size size)
 
 	ret = (*context->methods.alloc) (context, size);
 	VALGRIND_MEMPOOL_ALLOC(context, ret, size);
+  MEMORY_CONTEXT_ALLOC(context, filename, lineno, ret);
 
 	return ret;
 }
@@ -1440,7 +1454,7 @@ MemoryContextAllocHuge(MemoryContext context, Size size)
  *		value.  The previous allocation need not have been "huge".
  */
 void *
-repalloc_huge(void *pointer, Size size)
+repalloc_hugeImpl(void *pointer, Size size, const char *filename, int lineno)
 {
 	StandardChunkHeader *header;
 	MemoryContext context;
@@ -1471,6 +1485,7 @@ repalloc_huge(void *pointer, Size size)
 
 	ret = (*context->methods.realloc) (context, pointer, size);
 	VALGRIND_MEMPOOL_CHANGE(context, pointer, ret, size);
+  MEMORY_CONTEXT_REALLOC(context, pointer, ret, filename, lineno);
 
 	return ret;
 }

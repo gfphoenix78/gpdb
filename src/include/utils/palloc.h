@@ -105,16 +105,24 @@ extern volatile OOMTimeType* segmentOOMTime;
 extern volatile OOMTimeType oomTrackerStartTime;
 extern volatile OOMTimeType alreadyReportedOOMTime;
 
+#define MemoryContextAlloc(ctx, size) MemoryContextAllocImpl((ctx), (size), __FILE__, __LINE__)
+#define MemoryContextAllocZero(ctx, size) MemoryContextAllocZeroImpl((ctx), (size), __FILE__, __LINE__)
+#define MemoryContextAllocZeroAligned(ctx, size) MemoryContextAllocZeroAlignedImpl((ctx), (size), __FILE__, __LINE__)
+#define MemoryContextAllocHuge(ctx, size) MemoryContextAllocHugeImpl((ctx), (size), __FILE__, __LINE__)
+#define palloc(size) pallocImpl((size), __FILE__, __LINE__)
+#define palloc0(size) palloc0Impl((size), __FILE__, __LINE__)
+#define repalloc(pointer, size) repallocImpl((pointer), (size), __FILE__, __LINE__)
+#define repalloc_huge(pointer, size) repalloc_hugeImpl((pointer), (size), __FILE__, __LINE__)
 /*
  * Fundamental memory-allocation operations (more are in utils/memutils.h)
  */
-extern void *MemoryContextAlloc(MemoryContext context, Size size);
-extern void *MemoryContextAllocZero(MemoryContext context, Size size);
-extern void *MemoryContextAllocZeroAligned(MemoryContext context, Size size);
+extern void *MemoryContextAllocImpl(MemoryContext context, Size size, const char *filename, int lineno);
+extern void *MemoryContextAllocZeroImpl(MemoryContext context, Size size, const char *filename, int lineno);
+extern void *MemoryContextAllocZeroAlignedImpl(MemoryContext context, Size size, const char *filename, int lineno);
 
-extern void *palloc(Size size);
-extern void *palloc0(Size size);
-extern void *repalloc(void *pointer, Size size);
+extern void *pallocImpl(Size size, const char *filename, int lineno);
+extern void *palloc0Impl(Size size, const char *filename, int lineno);
+extern void *repallocImpl(void *pointer, Size size, const char *filename, int lineno);
 extern void pfree(void *pointer);
 
 /*
@@ -131,8 +139,8 @@ extern void pfree(void *pointer);
 		MemoryContextAllocZero(CurrentMemoryContext, sz) )
 
 /* Higher-limit allocators. */
-extern void *MemoryContextAllocHuge(MemoryContext context, Size size);
-extern void *repalloc_huge(void *pointer, Size size);
+extern void *MemoryContextAllocHugeImpl(MemoryContext context, Size size, const char *filename, int lineno);
+extern void *repalloc_hugeImpl(void *pointer, Size size, const char *filename, int lineno);
 
 /*
  * MemoryContextSwitchTo can't be a macro in standard C compilers.

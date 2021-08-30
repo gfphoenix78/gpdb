@@ -73,6 +73,9 @@ typedef struct MemoryContextData
     const char *callerFile;     /* __FILE__ of most recent caller */
     int         callerLine;     /* __LINE__ of most recent caller */
 #endif
+//#ifdef MEMORY_CONTEXT_TRACKER
+    char mc_tracker[32];
+//#endif
 } MemoryContextData;
 
 /* utils/palloc.h contains typedef struct MemoryContextData *MemoryContext */

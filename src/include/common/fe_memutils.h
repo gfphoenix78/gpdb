@@ -16,11 +16,15 @@ extern void *pg_malloc0(size_t size);
 extern void *pg_realloc(void *pointer, size_t size);
 extern void pg_free(void *pointer);
 
+
+#define palloc(size) pallocImpl((size), __FILE__, __LINE__)
+#define palloc0(size) palloc0Impl((size), __FILE__, __LINE__)
+#define repalloc(pointer, size) repallocImpl((pointer), (size), __FILE__, __LINE__)
 /* Equivalent functions, deliberately named the same as backend functions */
 extern char *pstrdup(const char *in);
-extern void *palloc(Size size);
-extern void *palloc0(Size size);
-extern void *repalloc(void *pointer, Size size);
+extern void *pallocImpl(Size size, const char *filename, int lineno);
+extern void *palloc0Impl(Size size, const char *filename, int lineno);
+extern void *repallocImpl(void *pointer, Size size, const char *filename, int lineno);
 extern void pfree(void *pointer);
 
 /* sprintf into a palloc'd buffer --- these are in psprintf.c */

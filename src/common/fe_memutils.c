@@ -98,13 +98,13 @@ pg_free(void *ptr)
  * programs that compile backend files.
  */
 void *
-palloc(Size size)
+pallocImpl(Size size, const char *filename, int lineno)
 {
 	return pg_malloc(size);
 }
 
 void *
-palloc0(Size size)
+palloc0Impl(Size size, const char *filename, int lineno)
 {
 	return pg_malloc0(size);
 }
@@ -122,7 +122,7 @@ pstrdup(const char *in)
 }
 
 void *
-repalloc(void *pointer, Size size)
+repallocImpl(void *pointer, Size size, const char *filename, int lineno)
 {
 	return pg_realloc(pointer, size);
 }
