@@ -717,7 +717,7 @@ standard_ExecutorStart(QueryDesc *queryDesc, int eflags)
 			 *
 			 * Main plan is parallel, send plan to it.
 			 */
-			if (queryDesc->plannedstmt->planTree->dispatch == DISPATCH_PARALLEL)
+			if (shouldDispatch)
 				CdbDispatchPlan(queryDesc, needDtx, true);
 		}
 
@@ -750,8 +750,8 @@ standard_ExecutorStart(QueryDesc *queryDesc, int eflags)
 		{
 			/* Run a root slice. */
 			if (queryDesc->planstate != NULL &&
-				queryDesc->plannedstmt->planTree->dispatch == DISPATCH_PARALLEL &&
-				queryDesc->plannedstmt->nMotionNodes > 0 &&
+				(queryDesc->plannedstmt->planTree->dispatch == DISPATCH_PARALLEL ||
+				queryDesc->plannedstmt->nMotionNodes > 0) &&
 				!estate->es_interconnect_is_setup)
 			{
 				Assert(!estate->interconnect_context);
