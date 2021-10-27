@@ -107,6 +107,7 @@
 #include "catalog/pg_amop.h"
 #include "catalog/pg_collation.h"
 #include "catalog/pg_operator.h"
+#include "commands/tablespace.h"
 #include "executor/instrument.h"	/* Instrumentation */
 #include "lib/stringinfo.h"		/* StringInfo */
 #include "executor/nodeSort.h"	/* gpmon */
@@ -858,6 +859,8 @@ tuplesort_begin_heap_file_readerwriter_mk(ScanState *ss,
 		 * back and that is it.
 		 */
 		MemoryContext oldctxt;
+
+		PrepareTempTablespaces();
 
 		state = tuplesort_begin_common(ss, workMem, randomAccess, false);
 		state->status = TSS_SORTEDONTAPE;

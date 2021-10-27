@@ -27,6 +27,7 @@
 #include "utils/memutils.h"
 
 #include "cdb/cdbvars.h"                /* currentSliceId */
+#include "commands/tablespace.h"        /* PrepareTempTablespaces */
 
 
 typedef struct NTupleStorePageHeader
@@ -756,6 +757,7 @@ ntuplestore_create_readerwriter(const char *filename, int64 maxBytes, bool isWri
 
 	snprintf(filenamelob, sizeof(filenamelob), "%s_LOB", filename);
 
+	PrepareTempTablespaces();
 	if(isWriter)
 	{
 		store = ntuplestore_create_common(maxBytes, "SharedTupleStore");
@@ -1382,6 +1384,7 @@ ntuplestore_create_spill_files(NTupleStore *nts)
 		Assert(nts->plobfile);
 		return;
 	}
+	PrepareTempTablespaces();
 
 	Assert(!nts->work_set);
 	nts->work_set = workfile_mgr_create_set(nts->operation_name, NULL, true /* hold pin */);

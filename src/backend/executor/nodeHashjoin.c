@@ -18,6 +18,7 @@
 #include "postgres.h"
 
 #include "access/htup_details.h"
+#include "commands/tablespace.h"
 #include "executor/executor.h"
 #include "executor/hashjoin.h"
 #include "executor/instrument.h"	/* Instrumentation */
@@ -1117,6 +1118,7 @@ ExecHashJoinSaveTuple(PlanState *ps, MemTuple tuple, uint32 hashvalue,
 		oldcxt = MemoryContextSwitchTo(bfCxt);
 		hashtable->work_set = workfile_mgr_create_set("HashJoin", NULL, true /* hold pin */);
 		MemoryContextSwitchTo(oldcxt);
+		PrepareTempTablespaces();
 	}
 
 	if (file == NULL)

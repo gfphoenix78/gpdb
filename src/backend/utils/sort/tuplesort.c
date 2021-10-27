@@ -2046,12 +2046,6 @@ inittapes(Tuplesortstate *state, const char* rwfile_prefix)
 		USEMEM(state, tapeSpace);
 
 	/*
-	 * Make sure that the temp file(s) underlying the tape set are created in
-	 * suitable temp tablespaces.
-	 */
-	PrepareTempTablespaces();
-
-	/*
 	 * Create the tape set and allocate the per-tape data arrays.
 	 */
 	if (!rwfile_prefix)
@@ -2061,6 +2055,12 @@ inittapes(Tuplesortstate *state, const char* rwfile_prefix)
 	}
 	else
 	{
+		/*
+		 * Make sure that the temp file(s) underlying the tape set are created in
+		 * suitable temp tablespaces.
+		 */
+		PrepareTempTablespaces();
+
 		/*
 		 * We are shared XSLICE, use given prefix to create files so that
 		 * consumers can find them. (The work set and the "state" were created
@@ -3884,6 +3884,7 @@ tuplesort_begin_heap_file_readerwriter(ScanState *ss,
 	int len = snprintf(statedump, sizeof(statedump), "%s_sortstate", rwfile_prefix);
 	if (len >= MAXPGPATH)
 		elog(ERROR, "could not generate temporary file name");
+	PrepareTempTablespaces();
 
 	if(isWriter)
 	{

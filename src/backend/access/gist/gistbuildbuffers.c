@@ -17,6 +17,7 @@
 #include "access/genam.h"
 #include "access/gist_private.h"
 #include "catalog/index.h"
+#include "commands/tablespace.h"
 #include "miscadmin.h"
 #include "storage/buffile.h"
 #include "storage/bufmgr.h"
@@ -58,6 +59,7 @@ gistInitBuildBuffers(int pagesPerBuffer, int levelStep, int maxLevel)
 	 * Create a temporary file to hold buffer pages that are swapped out of
 	 * memory.
 	 */
+	PrepareTempTablespaces();
 	gfbb->pfile = BufFileCreateTemp("GiSTBuild", false);
 	gfbb->nFileBlocks = 0;
 

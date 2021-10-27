@@ -85,6 +85,7 @@
 #include "utils/logtape.h"
 
 #include "cdb/cdbvars.h"                /* currentSliceId */
+#include "commands/tablespace.h"        /* PrepareTempTablespaces */
 
 
 /* A logical tape block, log tape blocks are organized into doulbe linked lists */
@@ -416,6 +417,7 @@ LogicalTapeSet *
 LogicalTapeSetCreate(int ntapes)
 {
 	LogicalTapeSet *lts = LogicalTapeSetCreate_Internal(ntapes);
+	PrepareTempTablespaces();
 	lts->pfile = BufFileCreateTemp("Sort", false /* interXact */);
 
 	return lts;

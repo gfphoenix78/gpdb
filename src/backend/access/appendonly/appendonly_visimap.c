@@ -19,6 +19,7 @@
 #include "access/appendonlytid.h"
 #include "access/hash.h"
 #include "cdb/cdbappendonlyblockdirectory.h"
+#include "commands/tablespace.h"
 #include "storage/fd.h"
 #include "utils/guc.h"
 #include "utils/memutils.h"
@@ -432,6 +433,8 @@ AppendOnlyVisimapDelete_Init(
 												 &hash_ctl,
 												 HASH_ELEM | HASH_FUNCTION | HASH_COMPARE);
 
+
+	PrepareTempTablespaces();
 	visiMapDelete->workfile = BufFileCreateTemp("visimap_delete", false /* interXact */);
 }
 
