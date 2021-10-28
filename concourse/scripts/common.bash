@@ -9,6 +9,23 @@ function set_env() {
     export TIMEFORMAT=$'\e[4;33mIt took %R seconds to complete this step\e[0m'
 }
 
+function determine_os() {
+  local name version
+  if [ -f /etc/redhat-release ]; then
+    name="centos"
+    version=$(sed </etc/redhat-release 's/.*release *//' | cut -f1 -d.)
+  elif [ -f /etc/SuSE-release ]; then
+    name="sles"
+    version=$(awk -F " *= *" '$1 == "VERSION" { print $2 }' /etc/SuSE-release)
+  elif grep -q ubuntu /etc/os-release ; then
+    name="ubuntu"
+    version=$(awk -F " *= *" '$1 == "VERSION_ID" { print $2 }' /etc/os-release | tr -d \")
+  else
+    echo "Could not determine operating system type" >/dev/stderr
+    exit 1
+  fi
+  echo "${name}${version}"
+}
 function build_arch() {
     if [[ ! -f /etc/os-release ]]; then
         echo "unable to determine platform" && exit 1
