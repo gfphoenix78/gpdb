@@ -111,16 +111,39 @@ ip link delete dev eth-internal
 }
 
 # create cluster with segments separated by net namespace
-
+function internal_address() {
+  local dbid="$1"
+  local addrType="$2"
+  case "$addrType" in
+    public-ip)
+      addr=$IPPREFIX.$dbid
+      ;;
+    public-name)
+      addr=${NSNAME}${dbid}
+      ;;
+    internal-ip)
+      addr=$INTERNALPREFIX.$dbid
+      ;;
+    internal-name|'')
+      addr=internal-$dbid
+      ;;
+    *)
+      echo "Invalid internal address type: $addrType" >&2
+      exit 1
+      ;;
+  esac
+  echo "$addr"
+}
 function create_cluster() {
 # create input configuration file
+local addrType="$1"
 local PORT_BASE=7000
 local datadir=$CWD/multi-home/qddir/demoDataDir-1
-local QD_PRIMARY_ARRAY=ns1~internal-1~${PORT_BASE}~$datadir~1~-1
+local coordinator_address=`internal_address 1 $addrType`
+local QD_PRIMARY_ARRAY=ns1~${coordinator_address}~${PORT_BASE}~$datadir~1~-1
 local PRIMARY_ARRAY=''
 local dbid=2
 local MDIR="$datadir"
-
 # add host to known_hosts
 for((i=1; i<NHOSTS; i++))
 do
@@ -135,22 +158,27 @@ for((i=0; i<NSEGMENTS; i++))
 do
   local ns=${NSNAME}${dbid}
   local datadir=$CWD/multi-home/dbfast$((i+1))/demoDataDir$i
+  local addr=`internal_address $dbid $addrType`
+#  internal-$dbid # default is internal name
   #mkdir -p "$datadir"
   mkdir -p "$(dirname $datadir)"
-  PRIMARY_ARRAY="$PRIMARY_ARRAY $ns~internal-$dbid~$((PORT_BASE+dbid))~$datadir~$dbid~$i"
+  #PRIMARY_ARRAY="$PRIMARY_ARRAY $ns~internal-$dbid~$((PORT_BASE+dbid))~$datadir~$dbid~$i"
+  PRIMARY_ARRAY="$PRIMARY_ARRAY $ns~$addr~$((PORT_BASE+dbid))~$datadir~$dbid~$i"
   dbid=$((dbid+1))
 done
 for((i=0; i<NSEGMENTS; i++))
 do
   local ns=${NSNAME}${dbid}
   local datadir=$CWD/multi-home/dbfast_mirror$((i+1))/demoDataDir$i
+  local addr=`internal_address $dbid $addrType`
   #mkdir -p "$datadir"
   mkdir -p "$(dirname $datadir)"
-  MIRROR_ARRAY="$MIRROR_ARRAY $ns~internal-$dbid~$((PORT_BASE+dbid))~$datadir~$dbid~$i"
+  MIRROR_ARRAY="$MIRROR_ARRAY $ns~$addr~$((PORT_BASE+dbid))~$datadir~$dbid~$i"
   dbid=$((dbid+1))
 done
 datadir=$CWD/multi-home/standby
-local STANDBY_INIT_OPTS="-s internal-$dbid -P $((PORT_BASE+1)) -S $datadir"
+local standby_address=`internal_address $dbid $addrType`
+local STANDBY_INIT_OPTS="-s ${standby_address} -P $((PORT_BASE+1)) -S $datadir"
 #mkdir -p $datadir
 mkdir -p "$(dirname $datadir)"
 cat > $CWD/input_configuration_file <<EOF
@@ -203,7 +231,8 @@ case "$1" in
     destroy
     ;;
   create-cluster)
-    create_cluster
+    # ARG[1]: address type, {public|internal}-{name|ip}
+    create_cluster $2
     ;;
   destroy-cluster)
     destroy_cluster
