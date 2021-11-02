@@ -165,10 +165,11 @@ class GpMirrorListToBuild:
         Which segments to run pg_rewind during incremental recovery.  The
         targetSegment is of type gparray.Segment.  All progressFiles should have
         the same timeStamp.
+        Note: sourceAddress is an internal address that will be used by WAL replication.
         """
-        def __init__(self, targetSegment, sourceHostname, sourcePort, timeStamp):
+        def __init__(self, targetSegment, sourceAddress, sourcePort, timeStamp):
             self.targetSegment = targetSegment
-            self.sourceHostname = sourceHostname
+            self.sourceAddress = sourceAddress
             self.sourcePort = sourcePort
             self.progressFile = '%s/pg_rewind.%s.dbid%s.out' % (gplog.get_logger_dir(),
                                                                 timeStamp,
@@ -273,7 +274,7 @@ class GpMirrorListToBuild:
             if not toRecover.isFullSynchronization() \
                and seg.getSegmentRole() == gparray.ROLE_MIRROR:
                 rewindInfo[seg.getSegmentDbId()] = GpMirrorListToBuild.RewindSegmentInfo(
-                    seg, primarySeg.getSegmentHostName(), primarySeg.getSegmentPort(),
+                    seg, primarySeg.getSegmentAddress(), primarySeg.getSegmentPort(),
                     timeStamp)
 
             # The change in configuration to of the mirror to down requires that
@@ -334,8 +335,8 @@ class GpMirrorListToBuild:
         for rewindSeg in list(rewindInfo.values()):
             # Do CHECKPOINT on source to force TimeLineID to be updated in pg_control.
             # pg_rewind wants that to make incremental recovery successful finally.
-            self.__logger.debug('Do CHECKPOINT on %s (port: %d) before running pg_rewind.' % (rewindSeg.sourceHostname, rewindSeg.sourcePort))
-            dburl = dbconn.DbURL(hostname=rewindSeg.sourceHostname,
+            self.__logger.debug('Do CHECKPOINT on %s (port: %d) before running pg_rewind.' % (rewindSeg.sourceAddress, rewindSeg.sourcePort))
+            dburl = dbconn.DbURL(hostname=rewindSeg.sourceAddress,
                                  port=rewindSeg.sourcePort,
                                  dbname='template1')
             conn = dbconn.connect(dburl, utility=True)
@@ -355,13 +356,13 @@ class GpMirrorListToBuild:
             # correlate the command results with GpMirrorToBuild
             # object.
             cmd = gp.SegmentRewind('rewind dbid: %s' %
-                                   rewindSeg.targetSegment.getSegmentDbId(),
-                                   rewindSeg.targetSegment.getSegmentHostName(),
-                                   rewindSeg.targetSegment.getSegmentDataDirectory(),
-                                   rewindSeg.sourceHostname,
-                                   rewindSeg.sourcePort,
-                                   rewindSeg.progressFile,
-                                   verbose=True)
+                                 rewindSeg.targetSegment.getSegmentDbId(),
+                                 target_host=rewindSeg.targetSegment.getSegmentHostName(), # where to run pg_rewind
+                                 target_datadir=rewindSeg.targetSegment.getSegmentDataDirectory(),
+                                 source_host=rewindSeg.sourceAddress, # primary internal address used by WAL replication
+                                 source_port=rewindSeg.sourcePort,
+                                 progress_file=rewindSeg.progressFile,
+                                 verbose=True)
             progressCmd, removeCmds[cmd] = self.__getProgressAndRemoveCmds(rewindSeg.progressFile,
                                                                      rewindSeg.targetSegment.getSegmentDbId(),
                                                                      rewindSeg.targetSegment.getSegmentHostName())
@@ -540,7 +541,7 @@ class GpMirrorListToBuild:
         for directive in directives:
             srcSegment = directive.getSrcSegment()
             destSegment = directive.getDestSegment()
-            destSegment.primaryHostname = srcSegment.getSegmentHostName()
+            destSegment.primaryAddress = srcSegment.getSegmentAddress()
             destSegment.primarySegmentPort = srcSegment.getSegmentPort()
             destSegment.progressFile = '%s/pg_basebackup.%s.dbid%s.out' % (gplog.get_logger_dir(),
                                                                            timeStamp,
