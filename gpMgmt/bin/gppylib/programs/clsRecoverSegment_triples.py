@@ -112,6 +112,25 @@ class RecoveryTripletsFactory:
                 return RecoveryTripletsNewHosts(gpArray, new_hosts)
 
 
+# host is considered to be the hostname or address of the segment.
+# This function infers the hostname & address from gpArray
+# by the tuple(host, port).
+def _resolve_host(gparray, host, port):
+    hostname, address = None, None
+    segList = gparray.getSegmentList()
+    for pair in segList:
+        for seg in pair.get_dbs():
+            if seg.getSegmentHostName() == host or seg.getSegmentAddress() == host:
+                # It's perfectly matched if the (hostname or address) and port matched
+                if seg.getSegmentPort() == port:
+                    return seg.getSegmentHostName(), seg.getSegmentAddress()
+                hostname = seg.getSegmentHostName()
+                address  = seg.getSegmentAddress()
+    # The host is not found in gparray, consider they have the same value
+    if hostname is None:
+        return host, host
+    return hostname, address
+
 class RecoveryTriplets(abc.ABC):
     def __init__(self, gpArray):
         """
@@ -131,6 +150,7 @@ class RecoveryTriplets(abc.ABC):
 
     def getInterfaceHostnameWarnings(self):
         return self.interfaceHostnameWarnings
+
 
     # TODO: the returned RecoveryTriplet(s) reflect (failed, live, failover) with failover reflecting the recovery
     # information of the new segment(that which will replace failed).  This is what is acted upon by
@@ -153,10 +173,13 @@ class RecoveryTriplets(abc.ABC):
                 #   as the failed segment(!).
                 failover = req.failed
                 req.failed = failover.copy()
+                _hostname, _address = _resolve_host(self.gpArray,
+                                                     req.failover_host,
+                                                     req.failover_port)
 
                 # now update values in failover segment
-                failover.setSegmentAddress(req.failover_host)
-                failover.setSegmentHostName(req.failover_host)
+                failover.setSegmentHostName(_hostname)
+                failover.setSegmentAddress(_address)
                 failover.setSegmentPort(int(req.failover_port))
                 failover.setSegmentDataDirectory(req.failover_datadir)
                 failover.unreachable = False if req.failover_to_new_host else failover.unreachable
