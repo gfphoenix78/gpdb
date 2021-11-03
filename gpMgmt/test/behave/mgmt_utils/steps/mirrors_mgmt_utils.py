@@ -69,7 +69,7 @@ def _write_datadir_config_for_three_mirrors():
 def add_three_mirrors_with_args(context, args):
     datadir_config = _write_datadir_config_for_three_mirrors()
     mirror_config_output_file = "/tmp/test_gpaddmirrors.config"
-    cmd_str = 'gpaddmirrors -o %s -m %s' % (mirror_config_output_file, datadir_config)
+    cmd_str = 'gpaddmirrors -a -o %s -m %s' % (mirror_config_output_file, datadir_config)
     Command('generate mirror_config file', cmd_str).run(validateAfter=True)
     cmd = 'gpaddmirrors -a -v -i %s %s' % (mirror_config_output_file, args)
     run_gpcommand(context, command=cmd)
@@ -494,3 +494,39 @@ def impl(context, host, content, status):
         if existing_dirs != locations:
             missing_dirs = [d for d in locations if d not in existing_dirs]
             raise Exception("One or more directories are not present on %s: %s" % (host, missing_dirs))
+
+
+@then('check if the addresses of wal replication are correct for all pairs')
+@when('check if the addresses of wal replication are correct for all pairs')
+@given('check if the addresses of wal replication are correct for all pairs')
+def impl(context):
+    gparray = GpArray.initFromCatalog(dbconn.DbURL(dbname='template1'))
+    if not gparray.hasMirrors:
+        return
+
+    def check_pair(p, m):
+        try:
+            cmdStr = "grep primary_conninfo %s/postgresql.auto.conf" % m.getSegmentDataDirectory()
+            cmd = Command("get primary_conninfo", cmdStr, ctxt=REMOTE, remoteHost=m.getSegmentHostName())
+            cmd.run(validateAfter=True)
+            conninfo = cmd.get_results().stdout.strip()
+        except:
+            if m.isSegmentDown():
+                return
+            raise
+
+        t = conninfo.split('host=')
+        if len(t) != 2:
+            raise Exception("invalid primary_conninfo='%s'" % conninfo)
+        host = t[1].split()[0].strip("'")
+        if host != p.getSegmentAddress():
+            raise Exception("wal address is '%s', but the primary address is '%s'" % (host, p.getSegmentAddress()))
+
+    for segs in gparray.segmentPairs:
+        p, m = segs.primaryDB, segs.mirrorDB
+        if m is None:
+            continue
+        if p is None:
+            raise Exception("primary is None")
+        check_pair(p, m)
+
