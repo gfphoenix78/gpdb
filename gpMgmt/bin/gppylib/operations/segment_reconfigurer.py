@@ -14,6 +14,7 @@ class SegmentReconfigurer:
         self.timeout = timeout
 
     def _trigger_fts_probe(self, dburl):
+        self.logger.info("Triggering segment reconfiguration: %s:%s" % (dburl.pghost, dburl.pgport))
         conn = pg.connect(dbname=dburl.pgdb,
                 host=dburl.pghost,
                 port=dburl.pgport,
@@ -21,6 +22,7 @@ class SegmentReconfigurer:
                 user=dburl.pguser,
                 passwd=dburl.pgpass,
                 )
+        conn.query(FTS_PROBE_QUERY)
         conn.query(FTS_PROBE_QUERY)
         conn.close()
 

@@ -3,6 +3,7 @@ set -exo
 
 CWD=$(cd "$( dirname "${BASH_SOURCE[0]}")" && pwd)
 echo "CWD=$CWD"
+dbdirs="$CWD/datadirs"
 IPPREFIX=${IPPREFIX-10.123.11}
 INTERNALPREFIX=10.123.119
 NICPREFIX=${NICPREFIX-cauto}
@@ -107,7 +108,7 @@ ip link delete dev eth-internal
 # net ns connect to the outside network.
 # Replace the outgoing NIC name.
 #iptables -t nat -D POSTROUTING -s $IPPREFIX.0/24 -o eth0 -j MASQUERADE
-[ -d "$CWD/multi-home" ] && rm -rf "$CWD/multi-home"
+[ -d "$dbdirs" ] && rm -rf "$dbdirs"
 }
 
 # create cluster with segments separated by net namespace
@@ -138,7 +139,7 @@ function create_cluster() {
 # create input configuration file
 local addrType="$1"
 local PORT_BASE=7000
-local datadir=$CWD/multi-home/qddir/demoDataDir-1
+local datadir=$dbdirs/qddir/demoDataDir-1
 local coordinator_address=`internal_address 1 $addrType`
 local QD_PRIMARY_ARRAY=ns1~${coordinator_address}~${PORT_BASE}~$datadir~1~-1
 local PRIMARY_ARRAY=''
@@ -157,7 +158,7 @@ mkdir -p "$(dirname $datadir)"
 for((i=0; i<NSEGMENTS; i++))
 do
   local ns=${NSNAME}${dbid}
-  local datadir=$CWD/multi-home/dbfast$((i+1))/demoDataDir$i
+  local datadir=$dbdirs/dbfast$((i+1))/demoDataDir$i
   local addr=`internal_address $dbid $addrType`
 #  internal-$dbid # default is internal name
   #mkdir -p "$datadir"
@@ -169,14 +170,14 @@ done
 for((i=0; i<NSEGMENTS; i++))
 do
   local ns=${NSNAME}${dbid}
-  local datadir=$CWD/multi-home/dbfast_mirror$((i+1))/demoDataDir$i
+  local datadir=$dbdirs/dbfast_mirror$((i+1))/demoDataDir$i
   local addr=`internal_address $dbid $addrType`
   #mkdir -p "$datadir"
   mkdir -p "$(dirname $datadir)"
   MIRROR_ARRAY="$MIRROR_ARRAY $ns~$addr~$((PORT_BASE+dbid))~$datadir~$dbid~$i"
   dbid=$((dbid+1))
 done
-datadir=$CWD/multi-home/standby
+datadir=$dbdirs/standby
 local standby_address=`internal_address $dbid $addrType`
 local STANDBY_INIT_OPTS="-s ${standby_address} -P $((PORT_BASE+1)) -S $datadir"
 #mkdir -p $datadir
@@ -208,7 +209,7 @@ gpinitsystem -a -I input_configuration_file $STANDBY_INIT_OPTS
 psql postgres -c 'select * from gp_segment_configuration'
 exit 0
 EOF
-chown gpadmin:gpadmin -R $CWD/multi-home $CWD/input_configuration_file $CWD/starter.sh
+chown gpadmin:gpadmin -R $dbdirs $CWD/input_configuration_file $CWD/starter.sh
 cat > $CWD/multiple_hosts_env.sh <<IEOF
 export PGPORT=${PORT_BASE}
 export MASTER_DATA_DIRECTORY=$MDIR

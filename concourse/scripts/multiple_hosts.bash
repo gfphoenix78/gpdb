@@ -33,9 +33,10 @@ FEOF
   exit 1
 }
 source /usr/local/greenplum-db-devel/greenplum_path.sh
-cd "$GPSRC"
-source gpAux/gpdemo/multiple_hosts_env.sh
-PG_TEST_EXTRA="kerberos ssl" make -s ${MAKE_TEST_COMMAND}
+source $GPSRC/gpAux/gpdemo/multiple_hosts_env.sh
+cd "$GPSRC/gpMgmt"
+flags="--tags=hostname_address --tags=~democluster,~concourse_cluster" \
+  make -f Makefile.behave behave
 EOF
 
   chmod a+x /opt/run_test.sh
