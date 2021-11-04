@@ -60,6 +60,7 @@ function _main() {
   time install_and_configure_gpdb
   time setup_gpadmin_user
   time prepare
+  time install_python_requirements_on_single_host $GPSRC/gpMgmt/requirements-dev.txt
   time gen_env
   time run_test
 }
