@@ -116,7 +116,7 @@ AddPendingSync(const RelFileNode *rnode)
  * transaction aborts later on, the storage will be destroyed.
  */
 SMgrRelation
-RelationCreateStorage(RelFileNode rnode, char relpersistence, SMgrImpl smgr_which, Relation rel)
+RelationCreateStorage(RelFileNode rnode, char relpersistence, SMgrImpl smgr_which)
 {
 	PendingRelDelete *pending;
 	SMgrRelation srel;
@@ -144,7 +144,7 @@ RelationCreateStorage(RelFileNode rnode, char relpersistence, SMgrImpl smgr_whic
 			return NULL;		/* placate compiler */
 	}
 
-	srel = smgropen(rnode, backend, smgr_which, rel);
+	srel = smgropen(rnode, backend, smgr_which);
 	smgrcreate(srel, MAIN_FORKNUM, false);
 
 	if (needs_wal)
@@ -206,8 +206,7 @@ RelationDropStorage(Relation rel)
 	pending->relnode.isTempRelation = rel->rd_backend == TempRelBackendId;
 	pending->atCommit = true;	/* delete if commit */
 	pending->nestLevel = GetCurrentTransactionNestLevel();
-	pending->relnode.smgr_which =
-		RelationIsAppendOptimized(rel) ? SMGR_AO : SMGR_MD;
+	pending->relnode.smgr_which = relation_get_smgr_impl(rel);
 	pending->next = pendingDeletes;
 	pendingDeletes = pending;
 
@@ -662,7 +661,7 @@ smgrDoPendingDeletes(bool isCommit)
 				srel = smgropen(pending->relnode.node,
 								pending->relnode.isTempRelation ?
 								TempRelBackendId : InvalidBackendId,
-								pending->relnode.smgr_which, NULL);
+								pending->relnode.smgr_which);
 
 				/* allocate the initial array, or extend it, if needed */
 				if (maxrels == 0)
@@ -743,7 +742,7 @@ smgrDoPendingSyncs(bool isCommit, bool isParallelWorker)
 		BlockNumber total_blocks = 0;
 		SMgrRelation srel;
 
-		srel = smgropen(pendingsync->rnode, InvalidBackendId, SMGR_MD, NULL);
+		srel = smgropen(pendingsync->rnode, InvalidBackendId, relation_get_smgr_impl(NULL));
 
 		/*
 		 * We emit newpage WAL records for smaller relations.
@@ -966,13 +965,14 @@ smgr_redo(XLogReaderState *record)
 		xl_smgr_create *xlrec = (xl_smgr_create *) XLogRecGetData(record);
 		SMgrRelation reln;
 
-		reln = smgropen(xlrec->rnode, InvalidBackendId, xlrec->impl, NULL);
+		reln = smgropen(xlrec->rnode, InvalidBackendId, xlrec->impl);
 		smgrcreate(reln, xlrec->forkNum, true);
 	}
 	else if (info == XLOG_SMGR_TRUNCATE)
 	{
 		xl_smgr_truncate *xlrec = (xl_smgr_truncate *) XLogRecGetData(record);
 		SMgrRelation reln;
+		SMgrImpl	smgr_which = SMGR_MD; /* should be passed from WAL record */
 		Relation	rel;
 		ForkNumber	forks[MAX_FORKNUM];
 		BlockNumber blocks[MAX_FORKNUM];
@@ -984,7 +984,7 @@ smgr_redo(XLogReaderState *record)
 		 * for AO takes a different code path, it does not involve emitting
 		 * SMGR_TRUNCATE WAL record.
 		 */
-		reln = smgropen(xlrec->rnode, InvalidBackendId, SMGR_MD, NULL);
+		reln = smgropen(xlrec->rnode, InvalidBackendId, smgr_which);
 
 		/*
 		 * Forcibly create relation if it doesn't exist (which suggests that

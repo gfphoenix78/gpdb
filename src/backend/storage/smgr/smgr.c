@@ -161,7 +161,7 @@ smgrshutdown(int code, Datum arg)
  *		This does not attempt to actually open the underlying file.
  */
 SMgrRelation
-smgropen(RelFileNode rnode, BackendId backend, SMgrImpl which, Relation rel)
+smgropen(RelFileNode rnode, BackendId backend, SMgrImpl which)
 {
 	RelFileNodeBackend brnode;
 	SMgrRelation reln;
@@ -203,12 +203,6 @@ smgropen(RelFileNode rnode, BackendId backend, SMgrImpl which, Relation rel)
 		/* it has no owner yet */
 		dlist_push_tail(&unowned_relns, &reln->node);
 		reln->smgr = &smgrsw[reln->smgr_which];
-
-		/*
-		 * hook for other storage managers.
-		 */
-		if (smgr_hook)
-			(*smgr_hook) (reln, backend, which, rel);
 
 		Assert(reln->smgr);
 
@@ -721,6 +715,20 @@ bool
 smgr_is_heap_relation(SMgrRelation reln)
 {
     return (reln->smgr == &smgrsw[SMGR_MD]);
+}
+
+int
+relation_get_smgr_impl(Relation rel)
+{
+	if (smgr_hook)
+		return (*smgr_hook)(rel);
+	return smgr_standard_impl(rel);
+}
+
+int
+smgr_standard_impl(Relation rel)
+{
+	return RelationIsAppendOptimized(rel) ? SMGR_AO : SMGR_MD;
 }
 
 /*

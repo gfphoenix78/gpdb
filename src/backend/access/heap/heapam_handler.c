@@ -605,7 +605,7 @@ heapam_relation_set_new_filenode(Relation rel,
 	 */
 	*minmulti = GetOldestMultiXactId();
 
-	srel = RelationCreateStorage(*newrnode, persistence, SMGR_MD, rel);
+	srel = RelationCreateStorage(*newrnode, persistence, relation_get_smgr_impl(rel));
 
 	/*
 	 * If required, set up an init fork for an unlogged table so that it can
@@ -642,8 +642,10 @@ static void
 heapam_relation_copy_data(Relation rel, const RelFileNode *newrnode)
 {
 	SMgrRelation dstrel;
+	SMgrImpl smgr_which;
 
-	dstrel = smgropen(*newrnode, rel->rd_backend, SMGR_MD, rel);
+	smgr_which = relation_get_smgr_impl(rel);
+	dstrel = smgropen(*newrnode, rel->rd_backend, smgr_which);
 
 	RelationOpenSmgr(rel);
 
@@ -662,7 +664,7 @@ heapam_relation_copy_data(Relation rel, const RelFileNode *newrnode)
 	 * NOTE: any conflict in relfilenode value will be caught in
 	 * RelationCreateStorage().
 	 */
-	RelationCreateStorage(*newrnode, rel->rd_rel->relpersistence, SMGR_MD, rel);
+	RelationCreateStorage(*newrnode, rel->rd_rel->relpersistence, smgr_which);
 
 	/* copy main fork */
 	RelationCopyStorage(rel->rd_smgr, dstrel, MAIN_FORKNUM,
@@ -683,7 +685,7 @@ heapam_relation_copy_data(Relation rel, const RelFileNode *newrnode)
 			if (RelationIsPermanent(rel) ||
 				(rel->rd_rel->relpersistence == RELPERSISTENCE_UNLOGGED &&
 				 forkNum == INIT_FORKNUM))
-				log_smgrcreate(newrnode, forkNum, SMGR_MD);
+				log_smgrcreate(newrnode, forkNum, smgr_which);
 			RelationCopyStorage(rel->rd_smgr, dstrel, forkNum,
 								rel->rd_rel->relpersistence);
 		}

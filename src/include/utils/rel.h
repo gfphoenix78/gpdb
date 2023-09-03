@@ -609,7 +609,7 @@ typedef struct ViewOptions
 			smgrsetowner(&((relation)->rd_smgr), \
 						 smgropen((relation)->rd_node, \
 								  (relation)->rd_backend, \
-								  RelationIsAppendOptimized(relation)?SMGR_AO:SMGR_MD, relation)); \
+								  relation_get_smgr_impl(relation))); \
 	} while (0)
 
 /*

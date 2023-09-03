@@ -882,6 +882,9 @@ appendonly_relation_set_new_filenode(Relation rel,
 									 MultiXactId *minmulti)
 {
 	SMgrRelation srel;
+	SMgrImpl smgr_which;
+
+	smgr_which = relation_get_smgr_impl(rel);
 
 	/*
 	 * Append-optimized tables do not contain transaction information in
@@ -896,7 +899,7 @@ appendonly_relation_set_new_filenode(Relation rel,
 	 *
 	 * Segment files will be created when / if needed.
 	 */
-	srel = RelationCreateStorage(*newrnode, persistence, SMGR_AO, rel);
+	srel = RelationCreateStorage(*newrnode, persistence, smgr_which);
 
 	/*
 	 * If required, set up an init fork for an unlogged table so that it can
@@ -913,7 +916,7 @@ appendonly_relation_set_new_filenode(Relation rel,
 			   rel->rd_rel->relkind == RELKIND_MATVIEW ||
 			   rel->rd_rel->relkind == RELKIND_TOASTVALUE);
 		smgrcreate(srel, INIT_FORKNUM, false);
-		log_smgrcreate(newrnode, INIT_FORKNUM, SMGR_AO);
+		log_smgrcreate(newrnode, INIT_FORKNUM, smgr_which);
 		smgrimmedsync(srel, INIT_FORKNUM);
 	}
 
@@ -946,12 +949,14 @@ static void
 appendonly_relation_copy_data(Relation rel, const RelFileNode *newrnode)
 {
 	SMgrRelation dstrel;
+	SMgrImpl smgr_which;
 
+	smgr_which = relation_get_smgr_impl(rel);
 	/*
 	 * Use the "AO-specific" (non-shared buffers backed storage) SMGR
 	 * implementation
 	 */
-	dstrel = smgropen(*newrnode, rel->rd_backend, SMGR_AO, rel);
+	dstrel = smgropen(*newrnode, rel->rd_backend, smgr_which);
 	RelationOpenSmgr(rel);
 
 	/*
@@ -961,7 +966,7 @@ appendonly_relation_copy_data(Relation rel, const RelFileNode *newrnode)
 	 * NOTE: any conflict in relfilenode value will be caught in
 	 * RelationCreateStorage().
 	 */
-	RelationCreateStorage(*newrnode, rel->rd_rel->relpersistence, SMGR_AO, rel);
+	RelationCreateStorage(*newrnode, rel->rd_rel->relpersistence, smgr_which);
 
 	copy_append_only_data(rel->rd_node, *newrnode, rel->rd_backend, rel->rd_rel->relpersistence);
 
@@ -980,7 +985,7 @@ appendonly_relation_copy_data(Relation rel, const RelFileNode *newrnode)
 		 */
 		smgrcreate(dstrel, INIT_FORKNUM, false);
 
-		log_smgrcreate(newrnode, INIT_FORKNUM, SMGR_AO);
+		log_smgrcreate(newrnode, INIT_FORKNUM, smgr_which);
 	}
 
 	/* drop old relation, and close new one */

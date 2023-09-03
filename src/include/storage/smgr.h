@@ -137,7 +137,7 @@ extern bool smgr_is_heap_relation(SMgrRelation reln);
 
 extern void smgrinit(void);
 extern SMgrRelation smgropen(RelFileNode rnode, BackendId backend,
-                             SMgrImpl smgr_which, Relation rel);
+							 SMgrImpl smgr_which);
 extern bool smgrexists(SMgrRelation reln, ForkNumber forknum);
 extern void smgrsetowner(SMgrRelation *owner, SMgrRelation reln);
 extern void smgrclearowner(SMgrRelation *owner, SMgrRelation reln);
@@ -165,6 +165,8 @@ extern void smgrtruncate(SMgrRelation reln, ForkNumber *forknum,
 extern void smgrimmedsync(SMgrRelation reln, ForkNumber forknum);
 extern void AtEOXact_SMgr(void);
 
+extern int relation_get_smgr_impl(Relation rel);
+extern int smgr_standard_impl(Relation rel);
 
 /*
  * Hook for plugins to collect statistics from storage functions

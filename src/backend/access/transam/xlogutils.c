@@ -473,7 +473,7 @@ XLogReadBufferExtended(RelFileNode rnode, ForkNumber forknum,
 	 * Open the relation at smgr level.  Relations using shared buffers need
 	 * the default SMGR implementation.
 	 */
-	smgr = smgropen(rnode, InvalidBackendId, SMGR_MD, NULL);
+	smgr = smgropen(rnode, InvalidBackendId, relation_get_smgr_impl(NULL));
 
 	/*
 	 * Create the target file if it doesn't already exist.  This lets us cope

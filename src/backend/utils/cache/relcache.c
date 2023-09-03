@@ -3883,8 +3883,7 @@ RelationSetNewRelfilenode(Relation relation, char persistence)
 				SMgrRelation srel;
 
 				srel = RelationCreateStorage(newrnode, persistence,
-											 0 /* default storage implementation */,
-											 relation);
+											 relation_get_smgr_impl(relation));
 				smgrclose(srel);
 			}
 			break;

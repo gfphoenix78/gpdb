@@ -1151,7 +1151,7 @@ DropRelationFiles(RelFileNodePendingDelete *delrels, int ndelrels, bool isRedo)
 		SMgrRelation srel = smgropen(delrels[i].node,
 									 delrels[i].isTempRelation ?
 									 TempRelBackendId : InvalidBackendId,
-									 delrels[i].smgr_which, NULL);
+									 delrels[i].smgr_which);
 
 		if (isRedo)
 		{
@@ -1434,7 +1434,7 @@ _mdnblocks(SMgrRelation reln, ForkNumber forknum, MdfdVec *seg)
 int
 mdsyncfiletag(const FileTag *ftag, char *path)
 {
-	SMgrRelation reln = smgropen(ftag->rnode, InvalidBackendId, 0, NULL);
+	SMgrRelation reln = smgropen(ftag->rnode, InvalidBackendId, SMGR_MD);
 	File		file;
 	bool		need_to_close;
 	int			result,
@@ -1476,7 +1476,7 @@ mdsyncfiletag(const FileTag *ftag, char *path)
 int
 aosyncfiletag(const FileTag *ftag, char *path)
 {
-	SMgrRelation reln = smgropen(ftag->rnode, InvalidBackendId, 1, NULL);
+	SMgrRelation reln = smgropen(ftag->rnode, InvalidBackendId, SMGR_AO);
 	char	   *p;
 
 	/* Provide the path for informational messages. */
